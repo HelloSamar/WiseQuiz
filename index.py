@@ -1,25 +1,143 @@
 import os
+import logging
 import random
 import gspread
+from functools import lru_cache
+from datetime import datetime, timedelta
 from oauth2client.service_account import ServiceAccountCredentials
 from flask import Flask, render_template_string, request, session, jsonify
 
+# Configuration from environment variables
+GOOGLE_SHEET_URL = os.environ.get("GOOGLE_SHEET_URL")
+SECRET_KEY = os.environ.get("SECRET_KEY")
+PORT = int(os.environ.get("PORT", 5000))
+DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
+
+# Quiz configuration
+QUIZ_TIME_SECONDS = int(os.environ.get("QUIZ_TIME_SECONDS", 10))
+MASTERY_THRESHOLD = int(os.environ.get("MASTERY_THRESHOLD", 10))
+NUM_OPTIONS = 4
+
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
 
-# Google Sheets authentication
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/spreadsheets"
-]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-client = gspread.authorize(creds)
+# Security: Require SECRET_KEY in production
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ValueError("SECRET_KEY environment variable must be set in production")
+    SECRET_KEY = os.urandom(24)
 
-# Open the Google Sheet
-sheet = client.open_by_url(
-    "https://docs.google.com/spreadsheets/d/1dcQiwJVKEDhis5qHTuHjbu6lor_e4BZz29QhY22I5-0/edit?usp=drive_link"
-).sheet1
+app.secret_key = SECRET_KEY
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Global sheet variable
+sheet = None
+
+# Google Sheets authentication and initialization
+def initialize_sheet():
+    """Initialize Google Sheets connection."""
+    global sheet
+    
+    if not GOOGLE_SHEET_URL:
+        raise ValueError("GOOGLE_SHEET_URL environment variable not set")
+    
+    try:
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/spreadsheets"
+        ]
+        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        client = gspread.authorize(creds)
+        sheet = client.open_by_url(GOOGLE_SHEET_URL).sheet1
+        logger.info("Successfully connected to Google Sheets")
+    except FileNotFoundError:
+        logger.error("credentials.json file not found")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to connect to Google Sheets: {e}")
+        raise
+
+# Cache sheet data to reduce API calls (resets every 5 minutes)
+@lru_cache(maxsize=1)
+def get_sheet_data_cached():
+    """Get all records from sheet with caching."""
+    if sheet is None:
+        raise RuntimeError("Sheet not initialized")
+    return sheet.get_all_records()
+
+def clear_sheet_cache():
+    """Clear the cached sheet data."""
+    get_sheet_data_cached.cache_clear()
+
+# Error templates
+ERROR_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - OWS Quiz</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: #0f0e17;
+            color: #fffffe;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .card {
+            width: 100%;
+            max-width: 440px;
+            background: #1a1928;
+            border-radius: 20px;
+            padding: 40px 24px;
+            border: 1px solid rgba(255,255,255,0.06);
+            text-align: center;
+        }
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: #ef476f;
+        }
+        p {
+            color: #a7a9be;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        a {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #ff6b35;
+            color: #fffffe;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: opacity 0.2s;
+        }
+        a:hover { opacity: 0.8; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>⚠️ {{ error_title }}</h1>
+        <p>{{ error_message }}</p>
+        <a href="/">Return to Quiz</a>
+    </div>
+</body>
+</html>
+"""
 
 QUIZ_TEMPLATE = """
 <!DOCTYPE html>
@@ -275,7 +393,7 @@ QUIZ_TEMPLATE = """
                     <circle class="bg" cx="22" cy="22" r="18"/>
                     <circle class="fg" id="timerCircle" cx="22" cy="22" r="18"/>
                 </svg>
-                <div class="timer-num" id="timerNum">10</div>
+                <div class="timer-num" id="timerNum">{{ quiz_time }}</div>
             </div>
         </div>
     </div>
@@ -308,7 +426,7 @@ QUIZ_TEMPLATE = """
 </div>
 
 <script>
-    const TOTAL_TIME = 10;
+    const TOTAL_TIME = {{ quiz_time }};
     const circumference = 2 * Math.PI * 18; // ~113.1
     let timeLeft = TOTAL_TIME;
     let answered = false;
@@ -362,7 +480,10 @@ QUIZ_TEMPLATE = """
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: 'option=' + encodeURIComponent(selected)
         })
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) throw new Error('Failed to submit answer');
+            return r.json();
+        })
         .then(data => {
             document.querySelectorAll('.option').forEach(b => {
                 if (b.textContent.trim() === data.correct_answer) b.classList.add('correct');
@@ -370,6 +491,13 @@ QUIZ_TEMPLATE = """
             });
             showBanner(data.is_correct, data.correct_answer);
             setTimeout(() => window.location.href = '/', 1800);
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            alert('Failed to process answer. Please try again.');
+            answered = false;
+            timerInterval = setInterval(updateTimer, 1000);
+            disableAll().forEach(b => b.disabled = false);
         });
     }
 
@@ -381,13 +509,20 @@ QUIZ_TEMPLATE = """
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: 'option='
         })
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) throw new Error('Failed to process timeout');
+            return r.json();
+        })
         .then(data => {
             document.querySelectorAll('.option').forEach(b => {
                 if (b.textContent.trim() === data.correct_answer) b.classList.add('correct');
             });
             showBanner(false, data.correct_answer);
             setTimeout(() => window.location.href = '/', 1800);
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            alert('Failed to process answer. Please try again.');
         });
     }
 </script>
@@ -401,25 +536,59 @@ QUIZ_TEMPLATE = """
 def quiz():
     """Display a random quiz question from Google Sheets."""
     try:
-        data = sheet.get_all_records()
-        df_filtered = [row for row in data if int(row["Corrects"]) < 10]
+        if sheet is None:
+            logger.error("Sheet not initialized")
+            return render_template_string(
+                ERROR_TEMPLATE,
+                error_title="Configuration Error",
+                error_message="The application is not properly configured. Please try again later."
+            ), 500
+
+        # Get cached data to reduce API calls
+        data = get_sheet_data_cached()
+        
+        # Filter questions that haven't reached mastery threshold
+        df_filtered = [row for row in data if int(row.get("Corrects", 0)) < MASTERY_THRESHOLD]
 
         if not df_filtered:
+            logger.info("All phrases mastered")
             return render_template_string(QUIZ_TEMPLATE, complete=True)
 
         row = random.choice(df_filtered)
-        current_phrase   = row["Phrases"]
-        correct_answer   = row["One Word"]
-        correct_count    = row["Corrects"]
-        attempts_count   = row["Attempts"]
+        current_phrase = row.get("Phrases", "").strip()
+        correct_answer = row.get("One Word", "").strip()
+        
+        if not current_phrase or not correct_answer:
+            logger.error("Invalid row data in sheet")
+            return render_template_string(
+                ERROR_TEMPLATE,
+                error_title="Data Error",
+                error_message="Invalid data in the quiz sheet. Please contact support."
+            ), 500
 
-        # Store in session so /answer can access them safely
-        session["current_phrase"]   = current_phrase
-        session["correct_answer"]   = correct_answer
+        correct_count = int(row.get("Corrects", 0))
+        attempts_count = int(row.get("Attempts", 0))
 
-        incorrect_answers = [r["One Word"] for r in data if r["One Word"] != correct_answer]
-        options = [correct_answer] + random.sample(incorrect_answers, min(3, len(incorrect_answers)))
+        # Store in session for /answer endpoint
+        session["current_phrase"] = current_phrase
+        session["correct_answer"] = correct_answer
+        session.permanent = True
+
+        # Build options list
+        incorrect_answers = [r.get("One Word", "").strip() for r in data 
+                           if r.get("One Word", "").strip() != correct_answer]
+        
+        if not incorrect_answers:
+            logger.warning("Not enough incorrect options available")
+            incorrect_answers = ["Option A", "Option B", "Option C"]
+        
+        options = [correct_answer] + random.sample(
+            incorrect_answers, 
+            min(NUM_OPTIONS - 1, len(incorrect_answers))
+        )
         random.shuffle(options)
+
+        logger.info(f"Serving quiz for phrase: {current_phrase}")
 
         return render_template_string(
             QUIZ_TEMPLATE,
@@ -429,55 +598,123 @@ def quiz():
             correct=correct_count,
             attempts=attempts_count,
             remaining=len(df_filtered),
+            quiz_time=QUIZ_TIME_SECONDS,
         )
     except Exception as e:
-        app.logger.error(f"Quiz route error: {e}")
-        return "Error loading quiz. Please try again later.", 500
+        logger.error(f"Quiz route error: {e}", exc_info=True)
+        return render_template_string(
+            ERROR_TEMPLATE,
+            error_title="Error Loading Quiz",
+            error_message="An unexpected error occurred. Please try again later."
+        ), 500
 
 
 @app.route("/answer", methods=["POST"])
 def answer():
     """Process the user's answer and update the Google Sheet."""
-    selected_option = request.form.get("option", "")
-    current_phrase  = session.get("current_phrase")
-    correct_answer  = session.get("correct_answer")
-
-    if not current_phrase or not correct_answer:
-        return jsonify({"error": "No active question"}), 400
-
-    is_correct = selected_option == correct_answer
-
     try:
-        cell      = sheet.find(current_phrase)
-        row_index = cell.row
+        # Get and validate form data
+        selected_option = request.form.get("option", "").strip()
+        current_phrase = session.get("current_phrase", "").strip()
+        correct_answer = session.get("correct_answer", "").strip()
 
-        # Fetch column indices
-        headers       = sheet.row_values(1)
-        attempts_col  = headers.index("Attempts") + 1
-        corrects_col  = headers.index("Corrects") + 1
+        if not current_phrase or not correct_answer:
+            logger.warning("Missing session data for answer submission")
+            return jsonify({"error": "Session expired. Please refresh the page."}), 401
 
-        row_vals         = sheet.row_values(row_index)
-        current_attempts = int(row_vals[attempts_col - 1] or 0)
-        current_corrects = int(row_vals[corrects_col - 1] or 0)
+        if sheet is None:
+            logger.error("Sheet not initialized")
+            return jsonify({"error": "Server error. Please try again."}), 500
 
-        # Batch update
-        updates = [
-            {"range": gspread.utils.rowcol_to_a1(row_index, attempts_col),
-             "values": [[current_attempts + 1]]},
-        ]
-        if is_correct:
-            updates.append({
-                "range": gspread.utils.rowcol_to_a1(row_index, corrects_col),
-                "values": [[current_corrects + 1]]
-            })
-        sheet.batch_update(updates)
+        # Determine if answer is correct
+        is_correct = selected_option == correct_answer
+
+        logger.info(f"Answer submitted for '{current_phrase}': {is_correct}")
+
+        # Find and update the row in Google Sheets
+        try:
+            cell = sheet.find(current_phrase)
+            row_index = cell.row
+
+            # Fetch column indices
+            headers = sheet.row_values(1)
+            attempts_col = headers.index("Attempts") + 1
+            corrects_col = headers.index("Corrects") + 1
+
+            row_vals = sheet.row_values(row_index)
+            current_attempts = int(row_vals[attempts_col - 1] or 0)
+            current_corrects = int(row_vals[corrects_col - 1] or 0)
+
+            # Prepare batch update
+            updates = [
+                {
+                    "range": gspread.utils.rowcol_to_a1(row_index, attempts_col),
+                    "values": [[current_attempts + 1]]
+                },
+            ]
+            
+            if is_correct:
+                updates.append({
+                    "range": gspread.utils.rowcol_to_a1(row_index, corrects_col),
+                    "values": [[current_corrects + 1]]
+                })
+
+            sheet.batch_update(updates)
+            
+            # Clear cache to ensure fresh data on next quiz
+            clear_sheet_cache()
+            
+            logger.info(f"Sheet updated successfully for '{current_phrase}'")
+
+        except gspread.exceptions.CellNotFound:
+            logger.error(f"Phrase not found in sheet: {current_phrase}")
+            return jsonify({"error": "Question not found in database"}), 404
+        except Exception as e:
+            logger.error(f"Sheet update error: {e}", exc_info=True)
+            return jsonify({"error": "Failed to update progress"}), 500
+
+        return jsonify({
+            "is_correct": is_correct,
+            "correct_answer": correct_answer
+        })
 
     except Exception as e:
-        app.logger.error(f"Sheet update error: {e}")
-        return jsonify({"error": "Failed to update sheet"}), 500
+        logger.error(f"Answer route error: {e}", exc_info=True)
+        return jsonify({"error": "Server error"}), 500
 
-    return jsonify({"is_correct": is_correct, "correct_answer": correct_answer})
+
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors."""
+    logger.warning(f"404 error: {request.path}")
+    return render_template_string(
+        ERROR_TEMPLATE,
+        error_title="Page Not Found",
+        error_message="The page you're looking for doesn't exist."
+    ), 404
+
+
+@app.errorhandler(500)
+def server_error(error):
+    """Handle 500 errors."""
+    logger.error(f"500 error: {error}", exc_info=True)
+    return render_template_string(
+        ERROR_TEMPLATE,
+        error_title="Server Error",
+        error_message="An unexpected error occurred. Please try again later."
+    ), 500
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
+    # Initialize sheet connection before starting the app
+    try:
+        initialize_sheet()
+    except Exception as e:
+        logger.error(f"Failed to initialize application: {e}")
+        raise
+
+    app.run(
+        host="0.0.0.0",
+        port=PORT,
+        debug=DEBUG
+    )
