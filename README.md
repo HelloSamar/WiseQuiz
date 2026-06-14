@@ -1,112 +1,104 @@
 # WiseQuiz 🎓
 
-A simple, elegant quiz application for mastering one-word substitutions. Built with Flask and Google Sheets.
+A simple Flask quiz application for mastering one-word substitutions. Questions, correct counts, and attempt counts are stored in Google Sheets.
 
 ## Features
 
-- 🎯 **Interactive Quiz Interface** - Beautiful, responsive design with timer
-- 📊 **Google Sheets Integration** - Questions stored and tracked in a Google Sheet
-- ⏱️ **Timed Questions** - 10-second countdown for each question
-- 📈 **Progress Tracking** - Automatic tracking of correct answers and attempts
-- 🎨 **Modern UI** - Dark theme with smooth animations
+- Interactive multiple-choice quiz UI
+- Google Sheets question source and progress tracking
+- Timed questions with automatic timeout submission
+- Cached sheet reads to reduce Google API calls
+- Production-friendly `gunicorn index:app` entrypoint
+- Optional credentials from either `credentials.json` or `GOOGLE_CREDENTIALS_JSON`
 
-## Quick Start
+## Required Google Sheet columns
 
-### Prerequisites
+The first row of the sheet must include these exact headers:
 
-- Python 3.8+
-- Google Sheets API credentials (Service Account)
+| Column | Purpose |
+| --- | --- |
+| `Phrases` | Prompt shown to the learner |
+| `One Word` | Correct answer |
+| `Corrects` | Number of correct answers |
+| `Attempts` | Total attempts |
 
-### Installation
+## Local setup
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/HelloSamar/WiseQuiz.git
-   cd WiseQuiz
-   ```
-
-2. **Create virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Set up credentials**
-   - Download your Google Service Account credentials JSON
-   - Save as `credentials.json` in the project root
-   - Create `.env` file:
-     ```
-     GOOGLE_CLIENT_ID=your_client_id
-     GOOGLE_CLIENT_SECRET=your_client_secret
-     SECRET_KEY=your_secret_key
-     PORT=5000
-     ```
-
-5. **Run the application**
-   ```bash
-   python app.py
-   ```
-   - Open browser to `http://localhost:5000`
-
-## How It Works
-
-1. **Quiz Route** (`/`) - Fetches a random unanswered question from Google Sheets
-2. **Answer Route** (`/answer`) - Processes answer and updates sheet with progress
-3. **Progress Tracking** - Questions mastered after 10 correct answers
-4. **Completion** - Shows celebration screen when all questions are mastered
-
-## Project Structure
-
-```
-WiseQuiz/
-├── app.py              # Main Flask application
-├── requirements.txt    # Python dependencies
-├── .env               # Environment variables (not committed)
-├── .gitignore         # Git exclusions
-└── credentials.json   # Google API credentials (not committed)
+```bash
+git clone https://github.com/HelloSamar/WiseQuiz.git
+cd WiseQuiz
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-## Technology Stack
+Create a `.env` file or export these variables in your shell:
 
-- **Backend**: Flask 3.0.3
-- **Google Sheets API**: gspread, oauth2client
-- **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
-
-## Configuration
-
-Edit the Google Sheet URL in `app.py` (line 19) to use your own sheet:
-
-```python
-sheet = client.open_by_url(
-    "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit"
-).sheet1
+```bash
+export GOOGLE_SHEET_URL="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit"
+export SECRET_KEY="replace-with-a-long-random-secret"
+export DEBUG="true"
+export PORT="5000"
 ```
 
-Your sheet should have columns:
-- `Phrases` - The one-word substitution prompt
-- `One Word` - The correct answer
-- `Corrects` - Number of correct answers (auto-updated)
-- `Attempts` - Total attempts (auto-updated)
+Add your Google service-account credentials as one of the following:
 
-## Security
+```bash
+# Option 1: local file, ignored by git
+cp /path/to/service-account.json credentials.json
 
-- ⚠️ **Never commit** `.env` or `credentials.json` to git
-- Both files are in `.gitignore`
-- Use environment variables for all sensitive data
+# Option 2: custom file path
+export GOOGLE_CREDENTIALS_FILE="/secure/path/service-account.json"
 
-## License
+# Option 3: cloud deployments
+export GOOGLE_CREDENTIALS_JSON='{"type":"service_account", ... }'
+```
 
-MIT License - feel free to use and modify!
+Share the Google Sheet with the service-account email before running the app.
 
-## Support
+## Run locally
 
-For issues or questions, open an issue on GitHub.
+```bash
+python index.py
+```
 
----
+Open `http://localhost:5000`.
 
-**Happy Quizzing! 🚀**
+## Deploy
+
+The included `Procfile` uses:
+
+```bash
+gunicorn index:app
+```
+
+Set these production environment variables on your hosting platform:
+
+```bash
+GOOGLE_SHEET_URL=https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit
+SECRET_KEY=replace-with-a-long-random-secret
+GOOGLE_CREDENTIALS_JSON={...service-account-json...}
+```
+
+Optional configuration:
+
+| Variable | Default | Description |
+| --- | ---: | --- |
+| `PORT` | `5000` | Local port when running `python index.py` |
+| `DEBUG` | `false` | Enables Flask debug mode only for local development |
+| `CACHE_TTL_SECONDS` | `300` | Google Sheet read-cache TTL |
+| `QUIZ_TIME_SECONDS` | `10` | Countdown per question |
+| `MASTERY_THRESHOLD` | `10` | Correct answers required before a phrase is mastered |
+| `NUM_OPTIONS` | `4` | Maximum number of answer choices |
+
+## Health check
+
+```bash
+curl http://localhost:5000/health
+```
+
+## Security notes
+
+- Do not commit `.env`, `credentials.json`, or service-account JSON.
+- Use a stable `SECRET_KEY` in production so sessions survive restarts.
+- The app uses HTTP-only, same-site session cookies.
