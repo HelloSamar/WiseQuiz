@@ -7,13 +7,11 @@
   <title>WiseQuiz</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Lora:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <a class="skip-link" href="#mainContent">Skip to quiz content</a>
-  <div class="ambient ambient-one" aria-hidden="true"></div>
-  <div class="ambient ambient-two" aria-hidden="true"></div>
 
   <div class="app-shell">
     <header class="app-header">
@@ -22,7 +20,7 @@
           <span class="brand-mark">WQ</span>
           <span>
             <b>WiseQuiz</b>
-            <small>SSC vocabulary trainer</small>
+            <small>SSC vocabulary practice</small>
           </span>
         </a>
         <div class="top-actions" aria-label="Progress controls">
@@ -35,33 +33,35 @@
 
       <section class="hero-panel" aria-labelledby="heroTitle">
         <div class="hero-copy">
-          <p class="eyebrow">Pro practice dashboard</p>
-          <h1 id="heroTitle">Build vocabulary with focused quiz boxes.</h1>
-          <p class="lead">Choose OWS, Idioms, Synonyms, or Antonyms. WiseQuiz tracks weak words locally and repeats them intelligently until they stick.</p>
+          <p class="eyebrow">Practice dashboard</p>
+          <h1 id="heroTitle">Choose a box and start.</h1>
+          <p class="lead">Compact quizzes for OWS, Idioms, Synonyms, and Antonyms. Progress stays in your browser.</p>
           <div class="hero-actions">
             <button class="btn btn-primary" type="button" data-action="first-ready">Start practice</button>
-            <button class="btn btn-glass" type="button" data-action="focus-settings">Tune session</button>
+            <button class="btn btn-plain" type="button" data-action="focus-settings">Settings</button>
           </div>
         </div>
         <aside class="hero-card" aria-label="Learning status">
           <div class="status-orb" aria-hidden="true"><span id="heroMastery">0%</span></div>
-          <p class="eyebrow">Today’s workspace</p>
-          <h2 id="statusBox">Loading data…</h2>
-          <p id="heroSubStatus">Preparing your study dashboard.</p>
+          <div>
+            <p class="eyebrow">Status</p>
+            <h2 id="statusBox">Loading data…</h2>
+            <p id="heroSubStatus">Preparing your quiz boxes.</p>
+          </div>
         </aside>
       </section>
     </header>
 
     <main id="mainContent">
       <section id="homeScreen" class="screen active" aria-labelledby="dashboardTitle">
-        <div class="section-head">
+        <div class="section-head compact-head">
           <div>
-            <p class="eyebrow">Dashboard</p>
-            <h2 id="dashboardTitle">Practice boxes</h2>
+            <p class="eyebrow">Boxes</p>
+            <h2 id="dashboardTitle">Practice areas</h2>
           </div>
           <div class="search-wrap">
-            <label for="searchInput">Search boxes</label>
-            <input id="searchInput" type="search" placeholder="Try idioms, OWS, synonym…" autocomplete="off">
+            <label for="searchInput">Search</label>
+            <input id="searchInput" type="search" placeholder="OWS, idioms, synonyms…" autocomplete="off">
           </div>
         </div>
 
@@ -70,55 +70,48 @@
 
         <section class="control-deck" id="settingsPanel" aria-labelledby="settingsTitle">
           <article class="settings-card">
-            <div class="card-heading">
-              <p class="eyebrow">Session settings</p>
-              <h2 id="settingsTitle">Tune the quiz</h2>
+            <div class="card-heading inline-heading">
+              <div>
+                <p class="eyebrow">Session</p>
+                <h2 id="settingsTitle">Quiz settings</h2>
+              </div>
+              <label class="mode-card compact-mode" for="studyMode">
+                <span>Mode</span>
+                <select id="studyMode">
+                  <option value="smart">Smart</option>
+                  <option value="instant">Instant</option>
+                </select>
+              </label>
             </div>
             <div class="settings-grid">
               <label class="toggle-card">
                 <input type="checkbox" id="includeMastered">
                 <span class="toggle-ui"></span>
-                <span><b>Include mastered</b><small>Bring completed items back into rotation.</small></span>
+                <span><b>Include mastered</b><small>Show completed items again.</small></span>
               </label>
               <label class="toggle-card">
                 <input type="checkbox" id="weakOnly">
                 <span class="toggle-ui"></span>
-                <span><b>Weak only</b><small>Focus on attempted low-score items.</small></span>
+                <span><b>Weak only</b><small>Low-score attempted items.</small></span>
               </label>
               <label class="toggle-card">
                 <input type="checkbox" id="unlearnedOnly">
                 <span class="toggle-ui"></span>
-                <span><b>Unlearned only</b><small>Practice never-attempted questions.</small></span>
-              </label>
-              <label class="mode-card" for="studyMode">
-                <span><b>Study mode</b><small>Choose how fast mastery is earned.</small></span>
-                <select id="studyMode">
-                  <option value="smart">Smart progression</option>
-                  <option value="instant">Instant mastery</option>
-                </select>
+                <span><b>Unlearned only</b><small>Never-attempted items.</small></span>
               </label>
             </div>
           </article>
 
           <aside class="insight-card" aria-label="Study tips">
-            <p class="eyebrow">How it works</p>
-            <h2>Weak words appear more often.</h2>
-            <p>Use number keys <kbd>1</kbd>–<kbd>4</kbd> to answer. Press <kbd>Enter</kbd> for the next question after feedback appears.</p>
-            <div class="insight-row">
-              <span>Local-only progress</span>
-              <strong>Private</strong>
-            </div>
-            <div class="insight-row">
-              <span>Export/import backup</span>
-              <strong>Ready</strong>
-            </div>
+            <p class="eyebrow">Shortcuts</p>
+            <p>Use <kbd>1</kbd>–<kbd>4</kbd> to answer, <kbd>Enter</kbd> for next, and <kbd>Esc</kbd> to return to boxes.</p>
           </aside>
         </section>
       </section>
 
       <section id="quizScreen" class="screen" aria-live="polite">
         <div class="quiz-top">
-          <button class="btn btn-soft" id="backBtn" type="button">← Boxes</button>
+          <button class="btn btn-soft dark" id="backBtn" type="button">← Boxes</button>
           <div class="quiz-meter" aria-label="Current quiz stats">
             <span id="quizCategory">Quiz</span>
             <b id="quizCount">0 attempted · 0 correct · streak 0</b>
