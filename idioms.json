@@ -1,1 +1,30 @@
-/mnt/data/idioms_upload.json
+[
+  {
+    "Idiom": "A piece of cake",
+    "Meaning": "Something that is easy to understand or do.",
+    "Example": "Completing the assignment was a piece of cake for him.",
+    "Score": 0,
+    "Attempt": 0
+  },
+  {
+    "Idiom": "Beat around the bush",
+    "Meaning": "To avoid the main topic.",
+    "Example": "Stop beating around the bush and get to the point.",
+    "Score": 0,
+    "Attempt": 0
+  },
+  {
+    "Idiom": "Cry over spilt milk",
+    "Meaning": "To complain about a loss in the past.",
+    "Example": "There's no use crying over spilt milk. We have to think about what to do next.",
+    "Score": 0,
+    "Attempt": 0
+  },
+  {
+    "Idiom": "Don't count your chickens before they hatch",
+    "Meaning": "Don't plan anything that depends on a good thing you expect to happen in the future.",
+    "Example": "He's already planning to buy a car with his bonus, but I told him not to count his chickens before they hatch.",
+    "Score": 0,
+    "Attempt": 0
+  }
+]
