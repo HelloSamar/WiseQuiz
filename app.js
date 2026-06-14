@@ -1,323 +1,39 @@
 "use strict";
-
-const MAX_SCORE = 5;
-const WEAK_THRESHOLD = 3;
-const STORAGE_KEY = "wisequiz.progress.v1";
-const SETTINGS_KEY = "wisequiz.settings.v1";
-
-const CONFIG = {
-  ows: {
-    title: "One Word Substitution",
-    icon: "🎯",
-    source: "ows.json",
-    label: "Choose the one-word substitution for",
-    desc: "Phrase to one-word answers from the OWS dataset.",
-    normalise(row, i) {
-      return makeItem("ows", row.Phrases, row["One Word Substitution"] || row["One Word"], row.Example, row["Hindi Meaning"], row.Level, i);
-    },
-  },
-  idioms: {
-    title: "Idioms",
-    icon: "💬",
-    source: "idioms.json",
-    label: "Choose the idiom that means",
-    desc: "Match idioms with meanings and examples.",
-    normalise(row, i) {
-      return makeItem("idioms", row.Meaning, row.Idiom, row.Example, row.Meaning, "Idiom", i);
-    },
-  },
-  synonyms: {
-    title: "Synonyms",
-    icon: "🔁",
-    source: "synonyms.json",
-    label: "Choose the synonym of",
-    desc: "Practice same-meaning word pairs.",
-    normalise(row, i) {
-      return makeItem("synonyms", row.Word, row.Synonym, row.Example, row.Meaning, "Synonym", i);
-    },
-  },
-  antonyms: {
-    title: "Antonyms",
-    icon: "↔️",
-    source: "antonyms.json",
-    label: "Choose the antonym of",
-    desc: "Practice opposite-word pairs.",
-    normalise(row, i) {
-      return makeItem("antonyms", row.Word, row.Antonym, row.Example, row.Meaning, "Antonym", i);
-    },
-  },
+const MAX_SCORE=5,WEAK_THRESHOLD=3,STORAGE_KEY="wisequiz.progress.v1",SETTINGS_KEY="wisequiz.settings.v1";
+const CONFIG={
+  ows:{title:"One Word Substitution",shortTitle:"OWS",icon:"🎯",source:"ows.json",label:"Choose the one-word substitution for",desc:"Phrase-to-word practice from the full OWS dataset.",normalise:(r,i)=>item("ows",r.Phrases,r["One Word Substitution"]||r["One Word"],r.Example,r["Hindi Meaning"],r.Level,i)},
+  idioms:{title:"Idioms",shortTitle:"Idioms",icon:"💬",source:"idioms.json",label:"Choose the idiom that means",desc:"Meaning-to-idiom drills with examples.",normalise:(r,i)=>item("idioms",r.Meaning,r.Idiom,r.Example,r.Meaning,"Idiom",i)},
+  synonyms:{title:"Synonyms",shortTitle:"Synonyms",icon:"🔁",source:"synonyms.json",label:"Choose the synonym of",desc:"Same-meaning word-pair practice.",normalise:(r,i)=>item("synonyms",r.Word,r.Synonym,r.Example,r.Meaning,"Synonym",i)},
+  antonyms:{title:"Antonyms",shortTitle:"Antonyms",icon:"↔️",source:"antonyms.json",label:"Choose the antonym of",desc:"Opposite-word practice for fast recall.",normalise:(r,i)=>item("antonyms",r.Word,r.Antonym,r.Example,r.Meaning,"Antonym",i)}
 };
-
-const state = {
-  data: { ows: [], idioms: [], synonyms: [], antonyms: [] },
-  errors: {},
-  progress: readJson(STORAGE_KEY, {}),
-  settings: { includeMastered: false, weakOnly: false, unlearnedOnly: false, studyMode: "smart", ...readJson(SETTINGS_KEY, {}) },
-  active: null,
-  pool: [],
-  current: null,
-  answered: false,
-  correct: 0,
-  attempted: 0,
-  streak: 0,
-  recent: [],
-};
-
-const $ = selector => document.querySelector(selector);
-const $$ = selector => Array.from(document.querySelectorAll(selector));
-
-function clean(value) { return value == null ? "" : String(value).trim(); }
-function makeItem(category, promptRaw, answerRaw, exampleRaw, meaningRaw, levelRaw, index) {
-  const prompt = clean(promptRaw);
-  const answer = clean(answerRaw);
-  if (!prompt || !answer) return null;
-  return { id: `${category}-${index}-${answer.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, category, prompt, answer, example: clean(exampleRaw), meaning: clean(meaningRaw), level: clean(levelRaw) };
-}
-function readJson(key, fallback) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } }
-function writeJson(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
-function saveProgress() { writeJson(STORAGE_KEY, state.progress); }
-function saveSettings() { writeJson(SETTINGS_KEY, state.settings); }
-function progressOf(q) {
-  const saved = state.progress[q.category]?.[q.id] || {};
-  const score = Math.max(0, Math.min(MAX_SCORE, Number(saved.score) || 0));
-  const attempt = Math.max(0, Number(saved.attempt) || 0);
-  return { score, attempt, mastered: Boolean(saved.mastered) || score >= MAX_SCORE };
-}
-function setProgress(q, next) {
-  if (!state.progress[q.category]) state.progress[q.category] = {};
-  state.progress[q.category][q.id] = { score: Math.max(0, Math.min(MAX_SCORE, next.score)), attempt: Math.max(0, next.attempt), mastered: Boolean(next.mastered) };
-  saveProgress();
-}
-
-async function loadData() {
-  await Promise.all(Object.entries(CONFIG).map(async ([key, config]) => {
-    try {
-      const response = await fetch(config.source, { cache: "no-store" });
-      if (!response.ok) throw new Error(`${config.source}: ${response.status}`);
-      const rows = await response.json();
-      state.data[key] = Array.isArray(rows) ? rows.map((row, index) => config.normalise(row, index)).filter(Boolean) : [];
-      delete state.errors[key];
-    } catch (error) {
-      state.data[key] = [];
-      state.errors[key] = error.message;
-    }
-  }));
-}
-
-function statsFor(key) {
-  return state.data[key].reduce((s, q) => {
-    const p = progressOf(q);
-    s.total += 1;
-    if (p.mastered) s.mastered += 1;
-    if (p.attempt === 0) s.unlearned += 1;
-    if (p.attempt > 0 && !p.mastered && p.score < WEAK_THRESHOLD) s.weak += 1;
-    return s;
-  }, { total: 0, mastered: 0, weak: 0, unlearned: 0 });
-}
-function overallStats() {
-  return Object.keys(CONFIG).reduce((total, key) => {
-    const s = statsFor(key);
-    total.total += s.total;
-    total.mastered += s.mastered;
-    total.weak += s.weak;
-    total.unlearned += s.unlearned;
-    return total;
-  }, { total: 0, mastered: 0, weak: 0, unlearned: 0 });
-}
-function setText(selector, text) { const el = $(selector); if (el) el.textContent = text; }
-function showScreen(id) { $$(".screen").forEach(screen => screen.classList.toggle("active", screen.id === id)); }
-
-function renderHome() {
-  showScreen("homeScreen");
-  syncControls();
-  renderOverallStats();
-  renderCategories();
-  renderStatus();
-}
-function syncControls() {
-  $("#includeMastered").checked = state.settings.includeMastered;
-  $("#weakOnly").checked = state.settings.weakOnly;
-  $("#unlearnedOnly").checked = state.settings.unlearnedOnly;
-  $("#studyMode").value = state.settings.studyMode;
-}
-function renderOverallStats() {
-  const target = $("#overallStats");
-  target.replaceChildren();
-  const s = overallStats();
-  addStat(target, s.total, "Total questions");
-  addStat(target, s.mastered, "Mastered");
-  addStat(target, s.weak, "Weak");
-  addStat(target, s.unlearned, "Unlearned");
-}
-function addStat(parent, number, label) {
-  const card = document.createElement("article");
-  card.className = "stat";
-  const value = document.createElement("strong");
-  value.textContent = number.toLocaleString();
-  const caption = document.createElement("span");
-  caption.textContent = label;
-  card.append(value, caption);
-  parent.append(card);
-}
-function renderCategories() {
-  const target = $("#categoryGrid");
-  target.replaceChildren();
-  Object.entries(CONFIG).forEach(([key, config]) => {
-    const stats = statsFor(key);
-    const percent = stats.total ? Math.round((stats.mastered / stats.total) * 100) : 0;
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "category-card";
-    card.disabled = stats.total === 0;
-    card.addEventListener("click", () => startQuiz(key));
-    const icon = document.createElement("span"); icon.className = "cat-icon"; icon.textContent = config.icon;
-    const title = document.createElement("h3"); title.textContent = config.title;
-    const desc = document.createElement("p"); desc.textContent = config.desc;
-    const mini = document.createElement("div"); mini.className = "mini-stats";
-    addPill(mini, `${stats.total.toLocaleString()} items`); addPill(mini, `${percent}% mastered`); addPill(mini, `${stats.weak} weak`);
-    card.append(icon, title, desc, mini);
-    target.append(card);
-  });
-}
-function addPill(parent, text) { const pill = document.createElement("span"); pill.className = "pill"; pill.textContent = text; parent.append(pill); }
-function renderStatus() {
-  const loaded = Object.values(state.data).reduce((sum, rows) => sum + rows.length, 0);
-  const errors = Object.keys(state.errors);
-  const status = $("#statusBox");
-  if (!loaded) { status.className = "status-box error"; status.textContent = "No quiz data loaded."; return; }
-  status.className = errors.length ? "status-box warn" : "status-box ok";
-  status.textContent = errors.length ? `Loaded ${loaded.toLocaleString()} questions. Missing: ${errors.map(key => CONFIG[key].title).join(", ")}.` : `Ready: ${loaded.toLocaleString()} questions across four boxes.`;
-}
-
-function buildPool(key) {
-  return state.data[key].filter(q => {
-    const p = progressOf(q);
-    if (!state.settings.includeMastered && p.mastered) return false;
-    if (state.settings.weakOnly && !(p.attempt > 0 && !p.mastered && p.score < WEAK_THRESHOLD)) return false;
-    if (state.settings.unlearnedOnly && p.attempt !== 0) return false;
-    return true;
-  });
-}
-function startQuiz(key) {
-  state.active = key;
-  state.pool = buildPool(key);
-  state.correct = 0;
-  state.attempted = 0;
-  state.streak = 0;
-  state.recent = [];
-  if (!state.pool.length) { window.alert("No questions match these filters. Try including mastered words or clearing filters."); return; }
-  showScreen("quizScreen");
-  nextQuestion();
-}
-function weightedPick() {
-  const fresh = state.pool.filter(q => !state.recent.includes(q.id));
-  const list = fresh.length ? fresh : state.pool;
-  const weighted = [];
-  list.forEach(q => {
-    const p = progressOf(q);
-    const weight = p.attempt === 0 ? 5 : p.mastered ? 1 : Math.max(1, MAX_SCORE - p.score + 1);
-    for (let i = 0; i < weight; i += 1) weighted.push(q);
-  });
-  return weighted[Math.floor(Math.random() * weighted.length)];
-}
-function nextQuestion() {
-  state.current = weightedPick();
-  state.answered = false;
-  state.recent.push(state.current.id);
-  if (state.recent.length > Math.min(10, state.pool.length)) state.recent.shift();
-  const config = CONFIG[state.active];
-  setText("#quizCategory", config.title);
-  setText("#promptLabel", config.label);
-  setText("#questionText", state.current.prompt);
-  updateQuizStats();
-  $("#progressLine").style.width = `${Math.min(100, (state.attempted / Math.max(1, state.pool.length)) * 100)}%`;
-  $("#feedbackBox").className = "feedback-box hidden";
-  $("#feedbackBox").replaceChildren();
-  $("#nextBtn").classList.add("hidden");
-  renderOptions();
-}
-function renderOptions() {
-  const correct = state.current.answer;
-  const answers = Array.from(new Set(state.data[state.active].map(q => q.answer).filter(answer => answer && answer !== correct)));
-  shuffle(answers);
-  const options = shuffle([correct, ...answers.slice(0, 3)]);
-  const target = $("#optionGrid");
-  target.replaceChildren();
-  options.forEach((answer, index) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "option-btn";
-    button.dataset.answer = answer;
-    button.addEventListener("click", () => answerQuestion(answer));
-    const key = document.createElement("span"); key.className = "option-key"; key.textContent = String(index + 1);
-    const label = document.createElement("span"); label.textContent = answer;
-    button.append(key, label);
-    target.append(button);
-  });
-}
-function answerQuestion(answer) {
-  if (state.answered) return;
-  state.answered = true;
-  state.attempted += 1;
-  const q = state.current;
-  const correct = answer === q.answer;
-  const prev = progressOf(q);
-  const score = correct ? (state.settings.studyMode === "instant" ? MAX_SCORE : prev.score + 1) : Math.max(0, prev.score - 1);
-  setProgress(q, { score, attempt: prev.attempt + 1, mastered: score >= MAX_SCORE });
-  if (correct) { state.correct += 1; state.streak += 1; } else { state.streak = 0; }
-  $$(".option-btn").forEach(button => {
-    button.disabled = true;
-    const value = button.dataset.answer;
-    if (value === q.answer) button.classList.add("correct");
-    else if (value === answer) button.classList.add("wrong");
-    else button.classList.toggle("reveal", value === q.answer);
-  });
-  renderFeedback(correct);
-  updateQuizStats();
-  $("#nextBtn").classList.remove("hidden");
-}
-function renderFeedback(correct) {
-  const q = state.current;
-  const box = $("#feedbackBox");
-  box.className = `feedback-box ${correct ? "good" : "bad"}`;
-  box.replaceChildren();
-  const headline = document.createElement("strong");
-  headline.textContent = correct ? "Correct" : `Correct answer: ${q.answer}`;
-  box.append(headline);
-  if (q.meaning) addFeedbackLine(box, "Meaning", q.meaning);
-  if (q.example) addFeedbackLine(box, "Example", q.example);
-}
-function addFeedbackLine(parent, label, value) {
-  const line = document.createElement("p");
-  const strong = document.createElement("b");
-  strong.textContent = `${label}: `;
-  line.append(strong, document.createTextNode(value));
-  parent.append(line);
-}
-function updateQuizStats() { setText("#quizCount", `${state.attempted} attempted · ${state.correct} correct · streak ${state.streak}`); }
-function shuffle(array) { for (let i = array.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [array[i], array[j]] = [array[j], array[i]]; } return array; }
-
-function bindEvents() {
-  $("#backBtn").addEventListener("click", renderHome);
-  $("#nextBtn").addEventListener("click", nextQuestion);
-  $$("[data-action='home']").forEach(el => el.addEventListener("click", event => { event.preventDefault(); renderHome(); }));
-  ["includeMastered", "weakOnly", "unlearnedOnly"].forEach(id => {
-    $("#" + id).addEventListener("change", event => { state.settings[id] = event.target.checked; saveSettings(); renderHome(); });
-  });
-  $("#studyMode").addEventListener("change", event => { state.settings.studyMode = event.target.value; saveSettings(); });
-  $("#resetBtn").addEventListener("click", () => { if (window.confirm("Reset all WiseQuiz progress on this browser?")) { state.progress = {}; saveProgress(); renderHome(); } });
-  $("#exportBtn").disabled = true;
-  $("#importInput").disabled = true;
-  document.addEventListener("keydown", event => {
-    if (!$("#quizScreen").classList.contains("active")) return;
-    if (/^[1-4]$/.test(event.key) && !state.answered) $$(".option-btn")[Number(event.key) - 1]?.click();
-    if (event.key === "Enter" && state.answered) nextQuestion();
-  });
-}
-
-loadData().then(() => { bindEvents(); renderHome(); }).catch(error => {
-  console.error(error);
-  const status = $("#statusBox");
-  status.className = "status-box error";
-  status.textContent = "WiseQuiz failed to start.";
-});
+const state={data:{ows:[],idioms:[],synonyms:[],antonyms:[]},errors:{},progress:read(STORAGE_KEY,{}),settings:{includeMastered:false,weakOnly:false,unlearnedOnly:false,studyMode:"smart",...read(SETTINGS_KEY,{})},search:"",active:null,pool:[],current:null,answered:false,correct:0,attempted:0,streak:0,recent:[]};
+const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s)),clean=v=>v==null?"":String(v).trim();
+function item(cat,p,a,ex,m,l,i){p=clean(p);a=clean(a);if(!p||!a)return null;const key=`${p}|${a}`.toLowerCase().replace(/[^a-z0-9\u0900-\u097f]+/gi,"-").replace(/^-+|-+$/g,"");return{id:`${cat}-${i}-${key}`,category:cat,prompt:p,answer:a,example:clean(ex),meaning:clean(m),level:clean(l)}}
+function read(k,f){try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch{return f}}function write(k,v){localStorage.setItem(k,JSON.stringify(v))}function saveProgress(){write(STORAGE_KEY,state.progress)}function saveSettings(){write(SETTINGS_KEY,state.settings)}
+function prog(q){const s=state.progress[q.category]?.[q.id]||{},score=Math.max(0,Math.min(MAX_SCORE,Number(s.score)||0)),attempt=Math.max(0,Number(s.attempt)||0);return{score,attempt,mastered:Boolean(s.mastered)||score>=MAX_SCORE}}
+function setProg(q,n){state.progress[q.category]??={};state.progress[q.category][q.id]={score:Math.max(0,Math.min(MAX_SCORE,n.score)),attempt:Math.max(0,n.attempt),mastered:Boolean(n.mastered)};saveProgress()}
+async function loadData(){await Promise.all(Object.entries(CONFIG).map(async([k,c])=>{try{const r=await fetch(c.source,{cache:"no-store"});if(!r.ok)throw Error(`${c.source}: ${r.status}`);const rows=await r.json();state.data[k]=Array.isArray(rows)?rows.map((x,i)=>c.normalise(x,i)).filter(Boolean):[];delete state.errors[k]}catch(e){state.data[k]=[];state.errors[k]=e.message||"Failed to load"}}))}
+function statsFor(k){return state.data[k].reduce((s,q)=>{const p=prog(q);s.total++;s.attempts+=p.attempt;if(p.mastered)s.mastered++;if(!p.attempt)s.unlearned++;if(p.attempt&&!p.mastered&&p.score<WEAK_THRESHOLD)s.weak++;return s},{total:0,mastered:0,weak:0,unlearned:0,attempts:0})}
+function overall(){return Object.keys(CONFIG).reduce((t,k)=>{const s=statsFor(k);for(const x of Object.keys(t))t[x]+=s[x];return t},{total:0,mastered:0,weak:0,unlearned:0,attempts:0})}
+function text(sel,v){const e=$(sel);if(e)e.textContent=v}function screen(id){$$('.screen').forEach(x=>x.classList.toggle('active',x.id===id))}
+function renderHome(){screen('homeScreen');sync();renderStats();renderCats();renderStatus()}
+function sync(){for(const id of ['includeMastered','weakOnly','unlearnedOnly']){const e=$('#'+id);if(e)e.checked=!!state.settings[id]}const m=$('#studyMode');if(m)m.value=state.settings.studyMode;const s=$('#searchInput');if(s&&s.value!==state.search)s.value=state.search}
+function renderStats(){const t=$('#overallStats');t.replaceChildren();const s=overall(),pct=s.total?Math.round(s.mastered/s.total*100):0;stat(t,s.total,'Total questions','Loaded across all boxes');stat(t,s.mastered,'Mastered',`${pct}% completion`);stat(t,s.weak,'Weak','Needs focused revision');stat(t,s.unlearned,'Unlearned','Fresh items remaining')}
+function stat(p,n,l,c){const a=document.createElement('article');a.className='stat';a.innerHTML=`<strong>${n.toLocaleString()}</strong><span>${l}</span><small>${c}</small>`;p.append(a)}
+function renderCats(){const t=$('#categoryGrid');t.replaceChildren();const q=state.search.toLowerCase();for(const [k,c] of Object.entries(CONFIG)){if(q&&!`${c.title} ${c.shortTitle} ${c.desc}`.toLowerCase().includes(q))continue;const s=statsFor(k),pct=s.total?Math.round(s.mastered/s.total*100):0,pool=buildPool(k).length,b=document.createElement('button');b.type='button';b.className='category-card';b.disabled=!s.total;b.addEventListener('click',()=>startQuiz(k));b.innerHTML=`<div class="card-topline"><span class="cat-icon">${c.icon}</span><span class="cat-state">${s.total?pool.toLocaleString()+" ready":"No data"}</span></div><h3>${c.title}</h3><p>${s.total?c.desc:"Missing or empty "+c.source}</p><div class="mini-stats"><span class="pill">${s.total.toLocaleString()} items</span><span class="pill">${pct}% mastered</span><span class="pill">${s.weak.toLocaleString()} weak</span></div><div class="card-progress"><span style="width:${pct}%"></span></div><span class="card-cta">${s.total?"Start box →":"Add data file"}</span>`;t.append(b)}if(!t.children.length){const e=document.createElement('article');e.className='category-card';e.innerHTML='<div class="card-topline"><span class="cat-icon">🔎</span><span class="cat-state">No match</span></div><h3>No boxes found</h3><p>Clear the search field to see every practice box.</p>';t.append(e)}}
+function renderStatus(){const loaded=Object.values(state.data).reduce((a,b)=>a+b.length,0),errs=Object.keys(state.errors),s=overall(),pct=s.total?Math.round(s.mastered/s.total*100):0,orb=$('#heroMastery')?.closest('.status-orb');text('#heroMastery',`${pct}%`);if(orb)orb.style.setProperty('--orb',`${pct}%`);if(!loaded){text('#statusBox','No quiz data loaded.');text('#heroSubStatus','Check that JSON files exist in the repository root.');return}text('#statusBox',`${loaded.toLocaleString()} questions ready`);text('#heroSubStatus',errs.length?`Missing: ${errs.map(k=>CONFIG[k].title).join(', ')}. Loaded boxes still work.`:`${s.mastered.toLocaleString()} mastered · ${s.weak.toLocaleString()} weak · ${s.unlearned.toLocaleString()} unlearned.`)}
+function buildPool(k){return state.data[k].filter(q=>{const p=prog(q);if(!state.settings.includeMastered&&p.mastered)return false;if(state.settings.weakOnly&&!(p.attempt&&!p.mastered&&p.score<WEAK_THRESHOLD))return false;if(state.settings.unlearnedOnly&&p.attempt)return false;return true})}
+function startFirstReady(){const k=Object.keys(CONFIG).find(x=>buildPool(x).length);k?startQuiz(k):alert('No questions match the current filters. Clear filters or include mastered items.')}
+function startQuiz(k){state.active=k;state.pool=buildPool(k);state.correct=state.attempted=state.streak=0;state.recent=[];if(!state.pool.length){alert('No questions match these filters. Try including mastered words or clearing filters.');return}screen('quizScreen');scrollTo({top:0,behavior:'smooth'});nextQuestion()}
+function pick(){const fresh=state.pool.filter(q=>!state.recent.includes(q.id)),list=fresh.length?fresh:state.pool,w=[];for(const q of list){const p=prog(q),n=p.attempt===0?5:p.mastered?1:Math.max(1,MAX_SCORE-p.score+1);for(let i=0;i<n;i++)w.push(q)}return w[Math.floor(Math.random()*w.length)]}
+function nextQuestion(){state.current=pick();state.answered=false;state.recent.push(state.current.id);if(state.recent.length>Math.min(10,state.pool.length))state.recent.shift();const c=CONFIG[state.active],p=prog(state.current);text('#quizCategory',c.title);text('#promptLabel',c.label);text('#questionText',state.current.prompt);text('#questionScore',`Score ${p.score} / ${MAX_SCORE}`);quizStats();$('#progressLine').style.width=`${Math.min(100,state.attempted/Math.max(1,state.pool.length)*100)}%`;$('#feedbackBox').className='feedback-box hidden';$('#feedbackBox').replaceChildren();$('#nextBtn').classList.add('hidden');options()}
+function options(){const correct=state.current.answer,answers=[...new Set(state.data[state.active].map(q=>q.answer).filter(a=>a&&a!==correct))];shuffle(answers);const opts=shuffle([correct,...answers.slice(0,3)]),t=$('#optionGrid');t.replaceChildren();opts.forEach((a,i)=>{const b=document.createElement('button');b.type='button';b.className='option-btn';b.dataset.answer=a;b.setAttribute('aria-label',`Option ${i+1}: ${a}`);b.addEventListener('click',()=>answer(a));b.innerHTML=`<span class="option-key">${i+1}</span><span class="option-label"></span>`;b.querySelector('.option-label').textContent=a;t.append(b)})}
+function answer(a){if(state.answered)return;state.answered=true;state.attempted++;const q=state.current,ok=a===q.answer,prev=prog(q),score=ok?(state.settings.studyMode==='instant'?MAX_SCORE:prev.score+1):Math.max(0,prev.score-1);setProg(q,{score,attempt:prev.attempt+1,mastered:score>=MAX_SCORE});if(ok){state.correct++;state.streak++}else state.streak=0;$$('.option-btn').forEach(b=>{b.disabled=true;const v=b.dataset.answer;if(v===q.answer)b.classList.add('correct');else if(v===a)b.classList.add('wrong');else b.classList.toggle('reveal',v===q.answer)});text('#questionScore',`Score ${Math.max(0,Math.min(MAX_SCORE,score))} / ${MAX_SCORE}`);feedback(ok);quizStats();$('#nextBtn').classList.remove('hidden');$('#nextBtn').focus({preventScroll:true})}
+function feedback(ok){const q=state.current,box=$('#feedbackBox');box.className=`feedback-box ${ok?'good':'bad'}`;box.replaceChildren();const h=document.createElement('strong');h.textContent=ok?'Correct. Keep the streak alive.':`Correct answer: ${q.answer}`;box.append(h);if(q.meaning&&q.meaning!==q.prompt)line(box,'Meaning',q.meaning);if(q.example)line(box,'Example',q.example)}
+function line(p,l,v){const x=document.createElement('p'),b=document.createElement('b');b.textContent=`${l}: `;x.append(b,document.createTextNode(v));p.append(x)}
+function quizStats(){const acc=state.attempted?Math.round(state.correct/state.attempted*100):0;text('#quizCount',`${state.attempted} attempted · ${state.correct} correct · ${acc}% accuracy · streak ${state.streak}`)}
+function exportProgress(){const payload={app:'WiseQuiz',version:1,exportedAt:new Date().toISOString(),progress:state.progress,settings:state.settings},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`wisequiz-progress-${new Date().toISOString().slice(0,10)}.json`;document.body.append(a);a.click();a.remove();URL.revokeObjectURL(url)}
+async function importProgress(file){if(!file)return;try{const payload=JSON.parse(await file.text()),progress=payload.progress||payload;if(!progress||typeof progress!=='object'||Array.isArray(progress))throw Error('Invalid progress file');state.progress=progress;if(payload.settings&&typeof payload.settings==='object'){state.settings={...state.settings,...payload.settings};saveSettings()}saveProgress();renderHome();alert('Progress imported successfully.')}catch(e){alert(`Could not import progress: ${e.message}`)}finally{$('#importInput').value=''}}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function bind(){ $('#backBtn').addEventListener('click',renderHome);$('#nextBtn').addEventListener('click',nextQuestion);$('#exportBtn').addEventListener('click',exportProgress);$('#importInput').addEventListener('change',e=>importProgress(e.target.files?.[0]));$('#resetBtn').addEventListener('click',()=>{if(confirm('Reset all WiseQuiz progress on this browser?')){state.progress={};saveProgress();renderHome()}});$$('[data-action="home"]').forEach(e=>e.addEventListener('click',ev=>{ev.preventDefault();renderHome()}));$$('[data-action="first-ready"]').forEach(e=>e.addEventListener('click',startFirstReady));$$('[data-action="focus-settings"]').forEach(e=>e.addEventListener('click',()=>$('#settingsPanel').scrollIntoView({behavior:'smooth',block:'start'})));for(const id of ['includeMastered','weakOnly','unlearnedOnly'])$('#'+id).addEventListener('change',e=>{state.settings[id]=e.target.checked;if(id==='weakOnly'&&e.target.checked)state.settings.unlearnedOnly=false;if(id==='unlearnedOnly'&&e.target.checked)state.settings.weakOnly=false;saveSettings();renderHome()});$('#studyMode').addEventListener('change',e=>{state.settings.studyMode=e.target.value;saveSettings()});$('#searchInput').addEventListener('input',e=>{state.search=e.target.value.trim();renderCats()});document.addEventListener('keydown',e=>{if(!$('#quizScreen').classList.contains('active'))return;if(/^[1-4]$/.test(e.key)&&!state.answered)$$('.option-btn')[Number(e.key)-1]?.click();if(e.key==='Enter'&&state.answered)nextQuestion();if(e.key==='Escape')renderHome()})}
+loadData().then(()=>{bind();renderHome()}).catch(e=>{console.error(e);text('#statusBox','WiseQuiz failed to start.');text('#heroSubStatus','Open the console for details and check the JSON files.')});
