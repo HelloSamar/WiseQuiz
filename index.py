@@ -19,35 +19,21 @@ def home():
     return send_from_directory(BASE_DIR, "index.html")
 
 
-@app.route("/app.js")
-def app_js():
-    return send_from_directory(BASE_DIR, "app.js")
-
-
-@app.route("/styles.css")
-def styles_css():
-    return send_from_directory(BASE_DIR, "styles.css")
-
-
-@app.route("/ows.json")
-def ows_json():
-    return send_from_directory(BASE_DIR, "ows.json")
-
-
-@app.route("/idioms.json")
-def idioms_json():
-    return send_from_directory(BASE_DIR, "idioms.json")
-
-
-@app.route("/synonyms.json")
-def synonyms_json():
-    return send_from_directory(BASE_DIR, "synonyms.json")
-
-
-@app.route("/antonyms.json")
-def antonyms_json():
-    return send_from_directory(BASE_DIR, "antonyms.json")
+@app.route("/<path:filename>")
+def assets(filename):
+    allowed = {
+        "app.js",
+        "styles.css",
+        "ows.json",
+        "idioms.json",
+        "synonyms.json",
+        "antonyms.json",
+    }
+    if filename not in allowed:
+        return jsonify({"error": "Not found"}), 404
+    return send_from_directory(BASE_DIR, filename)
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=PORT, debug=os.environ.get("DEBUG", "false").lower() == "true")
+    debug = os.environ.get("DEBUG", "false").lower() == "true"
+    app.run(host="0.0.0.0", port=PORT, debug=debug)

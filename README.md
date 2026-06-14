@@ -1,32 +1,53 @@
 # WiseQuiz
 
-WiseQuiz is a fresh SSC vocabulary trainer. The home page opens with four practice boxes: One Word Substitution, Idioms, Synonyms, and Antonyms.
+WiseQuiz is a lightweight SSC vocabulary quiz app. It runs as a static browser app and includes a tiny Flask wrapper for deployment.
 
-## Features
+## What is included
 
-- Fresh responsive dashboard.
-- Separate quiz boxes for OWS, idioms, synonyms, and antonyms.
-- Smart repetition that gives more practice to weak and unattempted questions.
-- Filters for mastered, weak, and unlearned questions.
-- Smart progression and instant mastery modes.
-- Keyboard shortcuts: number keys answer choices and Enter moves to the next question.
-- Browser progress storage with localStorage.
-- Flask wrapper for deployment with gunicorn.
+- One Word Substitution practice
+- Idioms practice
+- Synonyms practice
+- Antonyms practice
+- Smart repetition for weak and unattempted items
+- Smart Progression and Instant Mastery modes
+- Browser-based progress storage with `localStorage`
+- Keyboard shortcuts for fast practice
 
-## Files
+## Clean repository structure
 
-- `index.html` is the app page.
-- `styles.css` contains the UI.
-- `app.js` contains the quiz logic.
-- `ows.json`, `idioms.json`, `synonyms.json`, and `antonyms.json` contain quiz data.
-- `index.py` serves the app and JSON files.
-- `Procfile` runs `gunicorn index:app`.
+```text
+.
+├── index.html
+├── app.js
+├── styles.css
+├── ows.json
+├── idioms.json
+├── synonyms.json
+├── antonyms.json
+├── index.py
+├── requirements.txt
+├── Procfile
+├── .gitignore
+└── README.md
+```
+
+Generated folders such as `venv/`, cache files, local credentials, and archives should not be committed.
 
 ## Run locally
 
+### Static server
+
+```bash
+python -m http.server 5000
+```
+
+Open `http://localhost:5000`.
+
+### Flask server
+
 ```bash
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 python index.py
 ```
@@ -35,20 +56,66 @@ Open `http://localhost:5000`.
 
 ## Deploy
 
-Use the existing Procfile command:
+The included `Procfile` runs:
 
 ```bash
 gunicorn index:app
 ```
 
-No Google Sheets configuration is required for this version.
+No Google Sheets or secret credentials are required for this version.
+
+## Data files
+
+All quiz content is loaded from JSON files. Keep them as JSON arrays.
+
+### OWS format
+
+```json
+{
+  "Phrases": "Become less intense or widespread",
+  "One Word Substitution": "Abate",
+  "Hindi Meaning": "रोक-थाम करना",
+  "Example": "The storm began to abate after several hours of heavy rain.",
+  "Level": "Important"
+}
+```
+
+### Idioms format
+
+```json
+{
+  "Idiom": "A piece of cake",
+  "Meaning": "Something that is easy to understand or do.",
+  "Example": "Completing the assignment was a piece of cake for him."
+}
+```
+
+### Synonyms format
+
+```json
+{
+  "Word": "Abate",
+  "Synonym": "Subside",
+  "Meaning": "Become less intense",
+  "Example": "The storm began to abate by evening."
+}
+```
+
+### Antonyms format
+
+```json
+{
+  "Word": "Accept",
+  "Antonym": "Reject",
+  "Meaning": "Refuse to receive or agree",
+  "Example": "The committee may reject the proposal."
+}
+```
+
+## Progress storage
+
+Progress is saved in the browser. Use the app's export/import controls when moving progress between browsers or devices.
 
 ## Health check
 
-Open `/health`. It should return app status as JSON.
-
-## Data notes
-
-Each data file must be a JSON array. OWS rows use `Phrases` and `One Word Substitution`. Idiom rows use `Idiom` and `Meaning`. Synonym rows use `Word` and `Synonym`. Antonym rows use `Word` and `Antonym`.
-
-The committed JSON files are starter datasets. Replace them with larger JSON arrays when expanding the quiz.
+`/health` returns a small JSON status payload when running through Flask.
