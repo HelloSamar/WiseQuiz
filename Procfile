@@ -1,1 +1,1 @@
-web: python ows.py
+web: gunicorn index:app
