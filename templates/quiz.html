@@ -1,29 +1,9 @@
-{% if complete %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OWS Quiz</title>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-</head>
-<body>
-<div class="card">
-    <div class="complete">
-        <div class="emoji">🏆</div>
-        <h1>All Mastered!</h1>
-        <p>You've completed every phrase in this set. Outstanding work.</p>
-    </div>
-</div>
-</body>
-</html>
-{% else %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OWS Quiz</title>
+    <title>WiseQuiz</title>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -67,7 +47,7 @@
 
         @keyframes slideUp {
             from { opacity: 0; transform: translateY(20px); }
-            to   { opacity: 1; transform: translateY(0); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .header {
@@ -84,27 +64,10 @@
             letter-spacing: 0.02em;
         }
 
-        .timer-wrap {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .timer-ring {
-            position: relative;
-            width: 44px;
-            height: 44px;
-        }
-
-        .timer-ring svg {
-            transform: rotate(-90deg);
-        }
-
-        .timer-ring circle {
-            fill: none;
-            stroke-width: 3;
-        }
-
+        .timer-wrap { display: flex; align-items: center; gap: 8px; }
+        .timer-ring { position: relative; width: 44px; height: 44px; }
+        .timer-ring svg { transform: rotate(-90deg); }
+        .timer-ring circle { fill: none; stroke-width: 3; }
         .timer-ring .bg { stroke: var(--surface2); }
         .timer-ring .fg {
             stroke: var(--accent);
@@ -142,11 +105,7 @@
             min-height: 64px;
         }
 
-        .options {
-            display: grid;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
+        .options { display: grid; gap: 10px; margin-bottom: 20px; }
 
         .option {
             background: var(--surface2);
@@ -170,22 +129,9 @@
             transform: translateX(4px);
         }
 
-        .option:active:not(:disabled) {
-            transform: translateX(2px) scale(0.99);
-        }
-
-        .option.correct {
-            background: rgba(6,214,160,0.15);
-            border-color: var(--correct);
-            color: var(--correct);
-        }
-
-        .option.wrong {
-            background: rgba(239,71,111,0.15);
-            border-color: var(--wrong);
-            color: var(--wrong);
-        }
-
+        .option:active:not(:disabled) { transform: translateX(2px) scale(0.99); }
+        .option.correct { background: rgba(6,214,160,0.15); border-color: var(--correct); color: var(--correct); }
+        .option.wrong { background: rgba(239,71,111,0.15); border-color: var(--wrong); color: var(--wrong); }
         .option:disabled { cursor: default; }
 
         .stats {
@@ -203,12 +149,7 @@
             text-align: center;
         }
 
-        .stat-val {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--accent2);
-        }
-
+        .stat-val { font-size: 20px; font-weight: 700; color: var(--accent2); }
         .stat-lbl {
             font-size: 11px;
             color: var(--muted);
@@ -231,36 +172,48 @@
 
         @keyframes fadeIn {
             from { opacity: 0; transform: scale(0.95); }
-            to   { opacity: 1; transform: scale(1); }
+            to { opacity: 1; transform: scale(1); }
         }
 
         .result-banner.show { display: flex; }
         .result-banner.correct-banner { background: rgba(6,214,160,0.12); color: var(--correct); border: 1px solid rgba(6,214,160,0.3); }
-        .result-banner.wrong-banner  { background: rgba(239,71,111,0.12); color: var(--wrong);   border: 1px solid rgba(239,71,111,0.3); }
+        .result-banner.wrong-banner { background: rgba(239,71,111,0.12); color: var(--wrong); border: 1px solid rgba(239,71,111,0.3); }
 
-        .complete {
-            text-align: center;
-            padding: 40px 20px;
-        }
-
+        .complete { text-align: center; padding: 40px 20px; }
         .complete .emoji { font-size: 56px; margin-bottom: 16px; }
-        .complete h1 {
-            font-family: 'Playfair Display', serif;
-            font-size: 28px;
-            margin-bottom: 8px;
+        .complete h1 { font-family: 'Playfair Display', serif; font-size: 28px; margin-bottom: 8px; }
+        .complete p { color: var(--muted); font-size: 15px; line-height: 1.6; }
+        .complete a {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 18px;
+            background: var(--accent);
+            color: var(--text);
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
         }
-        .complete p { color: var(--muted); font-size: 15px; }
     </style>
 </head>
 <body>
+{% if complete %}
+<div class="card">
+    <div class="complete">
+        <div class="emoji">🏆</div>
+        <h1>All Mastered!</h1>
+        <p>You've completed every phrase in this set. Outstanding work.</p>
+        <a href="/">Check Again</a>
+    </div>
+</div>
+{% else %}
 <div class="card">
     <div class="header">
-        <span class="brand">OWS Quiz</span>
-        <div class="timer-wrap">
+        <span class="brand">WiseQuiz</span>
+        <div class="timer-wrap" aria-label="Question timer">
             <div class="timer-ring">
-                <svg width="44" height="44" viewBox="0 0 44 44">
-                    <circle class="bg" cx="22" cy="22" r="18"/>
-                    <circle class="fg" id="timerCircle" cx="22" cy="22" r="18"/>
+                <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
+                    <circle class="bg" cx="22" cy="22" r="18"></circle>
+                    <circle class="fg" id="timerCircle" cx="22" cy="22" r="18"></circle>
                 </svg>
                 <div class="timer-num" id="timerNum">{{ quiz_time }}</div>
             </div>
@@ -274,7 +227,7 @@
 
     <div class="options" id="options">
         {% for option in options %}
-        <button class="option" onclick="selectAnswer(this, '{{ option | e }}')">{{ option }}</button>
+        <button class="option" type="button" onclick='selectAnswer(this, {{ option | tojson }})'>{{ option }}</button>
         {% endfor %}
     </div>
 
@@ -296,105 +249,112 @@
 
 <script>
     const TOTAL_TIME = {{ quiz_time }};
-    const circumference = 2 * Math.PI * 18; // ~113.1
+    const circumference = 2 * Math.PI * 18;
     let timeLeft = TOTAL_TIME;
     let answered = false;
-    let timerInterval;
+    let timerInterval = null;
 
     const circle = document.getElementById('timerCircle');
-    const numEl  = document.getElementById('timerNum');
+    const numEl = document.getElementById('timerNum');
     circle.style.strokeDasharray = circumference;
 
     function updateTimer() {
-        const frac = timeLeft / TOTAL_TIME;
-        circle.style.strokeDashoffset = circumference * (1 - frac);
-        numEl.textContent = timeLeft;
+        const fraction = Math.max(timeLeft, 0) / TOTAL_TIME;
+        circle.style.strokeDashoffset = circumference * (1 - fraction);
+        numEl.textContent = Math.max(timeLeft, 0);
 
         if (timeLeft <= 3) circle.style.stroke = '#ef476f';
         else if (timeLeft <= 6) circle.style.stroke = '#ffd166';
 
         if (timeLeft <= 0) {
             clearInterval(timerInterval);
+            timerInterval = null;
             if (!answered) timeOut();
+            return;
         }
         timeLeft--;
     }
 
-    updateTimer();
-    timerInterval = setInterval(updateTimer, 1000);
-
     function disableAll() {
-        document.querySelectorAll('.option').forEach(b => b.disabled = true);
+        document.querySelectorAll('.option').forEach(button => { button.disabled = true; });
     }
 
-    function showBanner(correct, correctWord) {
+    function enableAll() {
+        document.querySelectorAll('.option').forEach(button => { button.disabled = false; });
+    }
+
+    function showBanner(correct, message) {
         const banner = document.getElementById('resultBanner');
-        if (correct) {
-            banner.className = 'result-banner show correct-banner';
-            banner.textContent = '✓ Correct!';
-        } else {
-            banner.className = 'result-banner show wrong-banner';
-            banner.textContent = '✗ Answer: ' + correctWord;
+        banner.className = correct
+            ? 'result-banner show correct-banner'
+            : 'result-banner show wrong-banner';
+        banner.textContent = correct ? '✓ Correct!' : '✗ Answer: ' + message;
+    }
+
+    function submitAnswer(selected) {
+        const body = new URLSearchParams();
+        body.set('option', selected || '');
+
+        return fetch('/answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        }).then(async response => {
+            const data = await response.json().catch(() => ({ error: 'Unexpected server response' }));
+            if (!response.ok) throw new Error(data.error || 'Failed to submit answer');
+            return data;
+        });
+    }
+
+    function revealAnswer(data, selected) {
+        document.querySelectorAll('.option').forEach(button => {
+            const value = button.textContent.trim();
+            if (value === data.correct_answer) button.classList.add('correct');
+            else if (value === selected) button.classList.add('wrong');
+        });
+        showBanner(data.is_correct, data.correct_answer);
+        setTimeout(() => window.location.href = '/', 1800);
+    }
+
+    function handleSubmissionError(error) {
+        console.error('Answer submission failed:', error);
+        const banner = document.getElementById('resultBanner');
+        banner.className = 'result-banner show wrong-banner';
+        banner.textContent = 'Could not save answer. Please try again.';
+        if (timeLeft > 0) {
+            answered = false;
+            enableAll();
+            if (timerInterval === null) {
+                timerInterval = setInterval(updateTimer, 1000);
+            }
         }
     }
 
-    function selectAnswer(btn, selected) {
+    function selectAnswer(button, selected) {
         if (answered) return;
         answered = true;
-        clearInterval(timerInterval);
+        if (timerInterval !== null) clearInterval(timerInterval);
+        timerInterval = null;
         disableAll();
 
-        fetch('/answer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'option=' + encodeURIComponent(selected)
-        })
-        .then(r => {
-            if (!r.ok) throw new Error('Failed to submit answer');
-            return r.json();
-        })
-        .then(data => {
-            document.querySelectorAll('.option').forEach(b => {
-                if (b.textContent.trim() === data.correct_answer) b.classList.add('correct');
-                else if (b.textContent.trim() === selected) b.classList.add('wrong');
-            });
-            showBanner(data.is_correct, data.correct_answer);
-            setTimeout(() => window.location.href = '/', 1800);
-        })
-        .catch(err => {
-            console.error('Error:', err);
-            alert('Failed to process answer. Please try again.');
-            answered = false;
-            timerInterval = setInterval(updateTimer, 1000);
-            disableAll().forEach(b => b.disabled = false);
-        });
+        submitAnswer(selected)
+            .then(data => revealAnswer(data, selected))
+            .catch(handleSubmissionError);
     }
 
     function timeOut() {
+        if (answered) return;
         answered = true;
         disableAll();
-        fetch('/answer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'option='
-        })
-        .then(r => {
-            if (!r.ok) throw new Error('Failed to process timeout');
-            return r.json();
-        })
-        .then(data => {
-            document.querySelectorAll('.option').forEach(b => {
-                if (b.textContent.trim() === data.correct_answer) b.classList.add('correct');
-            });
-            showBanner(false, data.correct_answer);
-            setTimeout(() => window.location.href = '/', 1800);
-        })
-        .catch(err => {
-            console.error('Error:', err);
-            alert('Failed to process answer. Please try again.');
-        });
+
+        submitAnswer('')
+            .then(data => revealAnswer(data, ''))
+            .catch(handleSubmissionError);
     }
+
+    updateTimer();
+    timerInterval = setInterval(updateTimer, 1000);
 </script>
+{% endif %}
 </body>
 </html>
-{% endif %}
