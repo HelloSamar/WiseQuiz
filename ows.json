@@ -1,1 +1,46 @@
-/mnt/data/ows_upload.json
+[
+  {
+    "Phrases": "Become less intense or widespread",
+    "One Word Substitution": "Abate",
+    "Hindi Meaning": "रोक-थाम करना",
+    "Example": "The storm began to abate after several hours of heavy rain.",
+    "Level": "Important",
+    "Score": 0,
+    "Attempt": 0,
+    "Percent": "0%",
+    "Mastered": false
+  },
+  {
+    "Phrases": "A building where animals are butchered",
+    "One Word Substitution": "Abattoir",
+    "Hindi Meaning": "कसाईखाना",
+    "Example": "The city council debated whether to relocate the abattoir away from residential areas.",
+    "Level": "Medium",
+    "Score": 0,
+    "Attempt": 0,
+    "Percent": "0%",
+    "Mastered": false
+  },
+  {
+    "Phrases": "The superior of monastery",
+    "One Word Substitution": "Abbot",
+    "Hindi Meaning": "मठाधीश",
+    "Example": "The abbot led the monks in their morning prayers.",
+    "Level": "Medium",
+    "Score": 0,
+    "Attempt": 0,
+    "Percent": "0%",
+    "Mastered": false
+  },
+  {
+    "Phrases": "A shortened form of a word or phrase",
+    "One Word Substitution": "Abbreviation",
+    "Hindi Meaning": "संक्षेपाक्षर",
+    "Example": "NASA is an abbreviation for National Aeronautics and Space Administration.",
+    "Level": "Easy",
+    "Score": 0,
+    "Attempt": 0,
+    "Percent": "0%",
+    "Mastered": false
+  }
+]
