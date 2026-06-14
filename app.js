@@ -1,39 +1,443 @@
 "use strict";
-const MAX_SCORE=5,WEAK_THRESHOLD=3,STORAGE_KEY="wisequiz.progress.v1",SETTINGS_KEY="wisequiz.settings.v1";
-const CONFIG={
-  ows:{title:"One Word Substitution",shortTitle:"OWS",icon:"🎯",source:"ows.json",label:"Choose the one-word substitution for",desc:"Phrase-to-word practice from the full OWS dataset.",normalise:(r,i)=>item("ows",r.Phrases,r["One Word Substitution"]||r["One Word"],r.Example,r["Hindi Meaning"],r.Level,i)},
-  idioms:{title:"Idioms",shortTitle:"Idioms",icon:"💬",source:"idioms.json",label:"Choose the idiom that means",desc:"Meaning-to-idiom drills with examples.",normalise:(r,i)=>item("idioms",r.Meaning,r.Idiom,r.Example,r.Meaning,"Idiom",i)},
-  synonyms:{title:"Synonyms",shortTitle:"Synonyms",icon:"🔁",source:"synonyms.json",label:"Choose the synonym of",desc:"Same-meaning word-pair practice.",normalise:(r,i)=>item("synonyms",r.Word,r.Synonym,r.Example,r.Meaning,"Synonym",i)},
-  antonyms:{title:"Antonyms",shortTitle:"Antonyms",icon:"↔️",source:"antonyms.json",label:"Choose the antonym of",desc:"Opposite-word practice for fast recall.",normalise:(r,i)=>item("antonyms",r.Word,r.Antonym,r.Example,r.Meaning,"Antonym",i)}
+
+const MAX_SCORE = 5;
+const WEAK_THRESHOLD = 3;
+const STORAGE_KEY = "wisequiz.progress.v1";
+const SETTINGS_KEY = "wisequiz.settings.v1";
+
+const CONFIG = {
+  ows: {
+    title: "One Word Substitution",
+    shortTitle: "OWS",
+    icon: "🎯",
+    source: "ows.json",
+    label: "Choose the one-word substitution for",
+    desc: "Phrase-to-word practice from the full OWS dataset.",
+    normalise: (r, i) => item("ows", r.Phrases, r["One Word Substitution"] || r["One Word"], r.Example, r["Hindi Meaning"], r.Level, i),
+  },
+  idioms: {
+    title: "Idioms",
+    shortTitle: "Idioms",
+    icon: "💬",
+    source: "idioms.json",
+    label: "Choose the idiom that means",
+    desc: "Meaning-to-idiom flashcards with examples.",
+    normalise: (r, i) => item("idioms", r.Meaning, r.Idiom, r.Example, r.Meaning, "Idiom", i),
+  },
+  synonyms: {
+    title: "Synonyms",
+    shortTitle: "Synonyms",
+    icon: "🔁",
+    source: "synonyms.json",
+    label: "Choose the synonym of",
+    desc: "Same-meaning word-pair practice.",
+    normalise: (r, i) => item("synonyms", r.Word, r.Synonym, r.Example, r.Meaning, "Synonym", i),
+  },
+  antonyms: {
+    title: "Antonyms",
+    shortTitle: "Antonyms",
+    icon: "↔️",
+    source: "antonyms.json",
+    label: "Choose the antonym of",
+    desc: "Opposite-word practice for fast recall.",
+    normalise: (r, i) => item("antonyms", r.Word, r.Antonym, r.Example, r.Meaning, "Antonym", i),
+  },
 };
-const state={data:{ows:[],idioms:[],synonyms:[],antonyms:[]},errors:{},progress:read(STORAGE_KEY,{}),settings:{includeMastered:false,weakOnly:false,unlearnedOnly:false,studyMode:"smart",...read(SETTINGS_KEY,{})},search:"",active:null,pool:[],current:null,answered:false,correct:0,attempted:0,streak:0,recent:[]};
-const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s)),clean=v=>v==null?"":String(v).trim();
-function item(cat,p,a,ex,m,l,i){p=clean(p);a=clean(a);if(!p||!a)return null;const key=`${p}|${a}`.toLowerCase().replace(/[^a-z0-9\u0900-\u097f]+/gi,"-").replace(/^-+|-+$/g,"");return{id:`${cat}-${i}-${key}`,category:cat,prompt:p,answer:a,example:clean(ex),meaning:clean(m),level:clean(l)}}
-function read(k,f){try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch{return f}}function write(k,v){localStorage.setItem(k,JSON.stringify(v))}function saveProgress(){write(STORAGE_KEY,state.progress)}function saveSettings(){write(SETTINGS_KEY,state.settings)}
-function prog(q){const s=state.progress[q.category]?.[q.id]||{},score=Math.max(0,Math.min(MAX_SCORE,Number(s.score)||0)),attempt=Math.max(0,Number(s.attempt)||0);return{score,attempt,mastered:Boolean(s.mastered)||score>=MAX_SCORE}}
-function setProg(q,n){state.progress[q.category]??={};state.progress[q.category][q.id]={score:Math.max(0,Math.min(MAX_SCORE,n.score)),attempt:Math.max(0,n.attempt),mastered:Boolean(n.mastered)};saveProgress()}
-async function loadData(){await Promise.all(Object.entries(CONFIG).map(async([k,c])=>{try{const r=await fetch(c.source,{cache:"no-store"});if(!r.ok)throw Error(`${c.source}: ${r.status}`);const rows=await r.json();state.data[k]=Array.isArray(rows)?rows.map((x,i)=>c.normalise(x,i)).filter(Boolean):[];delete state.errors[k]}catch(e){state.data[k]=[];state.errors[k]=e.message||"Failed to load"}}))}
-function statsFor(k){return state.data[k].reduce((s,q)=>{const p=prog(q);s.total++;s.attempts+=p.attempt;if(p.mastered)s.mastered++;if(!p.attempt)s.unlearned++;if(p.attempt&&!p.mastered&&p.score<WEAK_THRESHOLD)s.weak++;return s},{total:0,mastered:0,weak:0,unlearned:0,attempts:0})}
-function overall(){return Object.keys(CONFIG).reduce((t,k)=>{const s=statsFor(k);for(const x of Object.keys(t))t[x]+=s[x];return t},{total:0,mastered:0,weak:0,unlearned:0,attempts:0})}
-function text(sel,v){const e=$(sel);if(e)e.textContent=v}function screen(id){$$('.screen').forEach(x=>x.classList.toggle('active',x.id===id))}
-function renderHome(){screen('homeScreen');sync();renderStats();renderCats();renderStatus()}
-function sync(){for(const id of ['includeMastered','weakOnly','unlearnedOnly']){const e=$('#'+id);if(e)e.checked=!!state.settings[id]}const m=$('#studyMode');if(m)m.value=state.settings.studyMode;const s=$('#searchInput');if(s&&s.value!==state.search)s.value=state.search}
-function renderStats(){const t=$('#overallStats');t.replaceChildren();const s=overall(),pct=s.total?Math.round(s.mastered/s.total*100):0;stat(t,s.total,'Total questions','Loaded across all boxes');stat(t,s.mastered,'Mastered',`${pct}% completion`);stat(t,s.weak,'Weak','Needs focused revision');stat(t,s.unlearned,'Unlearned','Fresh items remaining')}
-function stat(p,n,l,c){const a=document.createElement('article');a.className='stat';a.innerHTML=`<strong>${n.toLocaleString()}</strong><span>${l}</span><small>${c}</small>`;p.append(a)}
-function renderCats(){const t=$('#categoryGrid');t.replaceChildren();const q=state.search.toLowerCase();for(const [k,c] of Object.entries(CONFIG)){if(q&&!`${c.title} ${c.shortTitle} ${c.desc}`.toLowerCase().includes(q))continue;const s=statsFor(k),pct=s.total?Math.round(s.mastered/s.total*100):0,pool=buildPool(k).length,b=document.createElement('button');b.type='button';b.className='category-card';b.disabled=!s.total;b.addEventListener('click',()=>startQuiz(k));b.innerHTML=`<div class="card-topline"><span class="cat-icon">${c.icon}</span><span class="cat-state">${s.total?pool.toLocaleString()+" ready":"No data"}</span></div><h3>${c.title}</h3><p>${s.total?c.desc:"Missing or empty "+c.source}</p><div class="mini-stats"><span class="pill">${s.total.toLocaleString()} items</span><span class="pill">${pct}% mastered</span><span class="pill">${s.weak.toLocaleString()} weak</span></div><div class="card-progress"><span style="width:${pct}%"></span></div><span class="card-cta">${s.total?"Start box →":"Add data file"}</span>`;t.append(b)}if(!t.children.length){const e=document.createElement('article');e.className='category-card';e.innerHTML='<div class="card-topline"><span class="cat-icon">🔎</span><span class="cat-state">No match</span></div><h3>No boxes found</h3><p>Clear the search field to see every practice box.</p>';t.append(e)}}
-function renderStatus(){const loaded=Object.values(state.data).reduce((a,b)=>a+b.length,0),errs=Object.keys(state.errors),s=overall(),pct=s.total?Math.round(s.mastered/s.total*100):0,orb=$('#heroMastery')?.closest('.status-orb');text('#heroMastery',`${pct}%`);if(orb)orb.style.setProperty('--orb',`${pct}%`);if(!loaded){text('#statusBox','No quiz data loaded.');text('#heroSubStatus','Check that JSON files exist in the repository root.');return}text('#statusBox',`${loaded.toLocaleString()} questions ready`);text('#heroSubStatus',errs.length?`Missing: ${errs.map(k=>CONFIG[k].title).join(', ')}. Loaded boxes still work.`:`${s.mastered.toLocaleString()} mastered · ${s.weak.toLocaleString()} weak · ${s.unlearned.toLocaleString()} unlearned.`)}
-function buildPool(k){return state.data[k].filter(q=>{const p=prog(q);if(!state.settings.includeMastered&&p.mastered)return false;if(state.settings.weakOnly&&!(p.attempt&&!p.mastered&&p.score<WEAK_THRESHOLD))return false;if(state.settings.unlearnedOnly&&p.attempt)return false;return true})}
-function startFirstReady(){const k=Object.keys(CONFIG).find(x=>buildPool(x).length);k?startQuiz(k):alert('No questions match the current filters. Clear filters or include mastered items.')}
-function startQuiz(k){state.active=k;state.pool=buildPool(k);state.correct=state.attempted=state.streak=0;state.recent=[];if(!state.pool.length){alert('No questions match these filters. Try including mastered words or clearing filters.');return}screen('quizScreen');scrollTo({top:0,behavior:'smooth'});nextQuestion()}
-function pick(){const fresh=state.pool.filter(q=>!state.recent.includes(q.id)),list=fresh.length?fresh:state.pool,w=[];for(const q of list){const p=prog(q),n=p.attempt===0?5:p.mastered?1:Math.max(1,MAX_SCORE-p.score+1);for(let i=0;i<n;i++)w.push(q)}return w[Math.floor(Math.random()*w.length)]}
-function nextQuestion(){state.current=pick();state.answered=false;state.recent.push(state.current.id);if(state.recent.length>Math.min(10,state.pool.length))state.recent.shift();const c=CONFIG[state.active],p=prog(state.current);text('#quizCategory',c.title);text('#promptLabel',c.label);text('#questionText',state.current.prompt);text('#questionScore',`Score ${p.score} / ${MAX_SCORE}`);quizStats();$('#progressLine').style.width=`${Math.min(100,state.attempted/Math.max(1,state.pool.length)*100)}%`;$('#feedbackBox').className='feedback-box hidden';$('#feedbackBox').replaceChildren();$('#nextBtn').classList.add('hidden');options()}
-function options(){const correct=state.current.answer,answers=[...new Set(state.data[state.active].map(q=>q.answer).filter(a=>a&&a!==correct))];shuffle(answers);const opts=shuffle([correct,...answers.slice(0,3)]),t=$('#optionGrid');t.replaceChildren();opts.forEach((a,i)=>{const b=document.createElement('button');b.type='button';b.className='option-btn';b.dataset.answer=a;b.setAttribute('aria-label',`Option ${i+1}: ${a}`);b.addEventListener('click',()=>answer(a));b.innerHTML=`<span class="option-key">${i+1}</span><span class="option-label"></span>`;b.querySelector('.option-label').textContent=a;t.append(b)})}
-function answer(a){if(state.answered)return;state.answered=true;state.attempted++;const q=state.current,ok=a===q.answer,prev=prog(q),score=ok?(state.settings.studyMode==='instant'?MAX_SCORE:prev.score+1):Math.max(0,prev.score-1);setProg(q,{score,attempt:prev.attempt+1,mastered:score>=MAX_SCORE});if(ok){state.correct++;state.streak++}else state.streak=0;$$('.option-btn').forEach(b=>{b.disabled=true;const v=b.dataset.answer;if(v===q.answer)b.classList.add('correct');else if(v===a)b.classList.add('wrong');else b.classList.toggle('reveal',v===q.answer)});text('#questionScore',`Score ${Math.max(0,Math.min(MAX_SCORE,score))} / ${MAX_SCORE}`);feedback(ok);quizStats();$('#nextBtn').classList.remove('hidden');$('#nextBtn').focus({preventScroll:true})}
-function feedback(ok){const q=state.current,box=$('#feedbackBox');box.className=`feedback-box ${ok?'good':'bad'}`;box.replaceChildren();const h=document.createElement('strong');h.textContent=ok?'Correct. Keep the streak alive.':`Correct answer: ${q.answer}`;box.append(h);if(q.meaning&&q.meaning!==q.prompt)line(box,'Meaning',q.meaning);if(q.example)line(box,'Example',q.example)}
-function line(p,l,v){const x=document.createElement('p'),b=document.createElement('b');b.textContent=`${l}: `;x.append(b,document.createTextNode(v));p.append(x)}
-function quizStats(){const acc=state.attempted?Math.round(state.correct/state.attempted*100):0;text('#quizCount',`${state.attempted} attempted · ${state.correct} correct · ${acc}% accuracy · streak ${state.streak}`)}
-function exportProgress(){const payload={app:'WiseQuiz',version:1,exportedAt:new Date().toISOString(),progress:state.progress,settings:state.settings},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`wisequiz-progress-${new Date().toISOString().slice(0,10)}.json`;document.body.append(a);a.click();a.remove();URL.revokeObjectURL(url)}
-async function importProgress(file){if(!file)return;try{const payload=JSON.parse(await file.text()),progress=payload.progress||payload;if(!progress||typeof progress!=='object'||Array.isArray(progress))throw Error('Invalid progress file');state.progress=progress;if(payload.settings&&typeof payload.settings==='object'){state.settings={...state.settings,...payload.settings};saveSettings()}saveProgress();renderHome();alert('Progress imported successfully.')}catch(e){alert(`Could not import progress: ${e.message}`)}finally{$('#importInput').value=''}}
-function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function bind(){ $('#backBtn').addEventListener('click',renderHome);$('#nextBtn').addEventListener('click',nextQuestion);$('#exportBtn').addEventListener('click',exportProgress);$('#importInput').addEventListener('change',e=>importProgress(e.target.files?.[0]));$('#resetBtn').addEventListener('click',()=>{if(confirm('Reset all WiseQuiz progress on this browser?')){state.progress={};saveProgress();renderHome()}});$$('[data-action="home"]').forEach(e=>e.addEventListener('click',ev=>{ev.preventDefault();renderHome()}));$$('[data-action="first-ready"]').forEach(e=>e.addEventListener('click',startFirstReady));$$('[data-action="focus-settings"]').forEach(e=>e.addEventListener('click',()=>$('#settingsPanel').scrollIntoView({behavior:'smooth',block:'start'})));for(const id of ['includeMastered','weakOnly','unlearnedOnly'])$('#'+id).addEventListener('change',e=>{state.settings[id]=e.target.checked;if(id==='weakOnly'&&e.target.checked)state.settings.unlearnedOnly=false;if(id==='unlearnedOnly'&&e.target.checked)state.settings.weakOnly=false;saveSettings();renderHome()});$('#studyMode').addEventListener('change',e=>{state.settings.studyMode=e.target.value;saveSettings()});$('#searchInput').addEventListener('input',e=>{state.search=e.target.value.trim();renderCats()});document.addEventListener('keydown',e=>{if(!$('#quizScreen').classList.contains('active'))return;if(/^[1-4]$/.test(e.key)&&!state.answered)$$('.option-btn')[Number(e.key)-1]?.click();if(e.key==='Enter'&&state.answered)nextQuestion();if(e.key==='Escape')renderHome()})}
-loadData().then(()=>{bind();renderHome()}).catch(e=>{console.error(e);text('#statusBox','WiseQuiz failed to start.');text('#heroSubStatus','Open the console for details and check the JSON files.')});
+
+const state = {
+  data: { ows: [], idioms: [], synonyms: [], antonyms: [] },
+  errors: {},
+  progress: read(STORAGE_KEY, {}),
+  settings: { includeMastered: false, weakOnly: false, unlearnedOnly: false, studyMode: "smart", ...read(SETTINGS_KEY, {}) },
+  search: "",
+  active: null,
+  pool: [],
+  current: null,
+  answered: false,
+  correct: 0,
+  attempted: 0,
+  streak: 0,
+  recent: [],
+};
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+const clean = (v) => (v == null ? "" : String(v).trim());
+
+function item(cat, prompt, answer, example, meaning, level, index) {
+  prompt = clean(prompt);
+  answer = clean(answer);
+  if (!prompt || !answer) return null;
+  const key = `${prompt}|${answer}`.toLowerCase().replace(/[^a-z0-9\u0900-\u097f]+/gi, "-").replace(/^-+|-+$/g, "");
+  return { id: `${cat}-${index}-${key}`, category: cat, prompt, answer, example: clean(example), meaning: clean(meaning), level: clean(level) };
+}
+
+function read(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function write(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function saveProgress() { write(STORAGE_KEY, state.progress); }
+function saveSettings() { write(SETTINGS_KEY, state.settings); }
+
+function prog(q) {
+  const saved = state.progress[q.category]?.[q.id] || {};
+  const score = Math.max(0, Math.min(MAX_SCORE, Number(saved.score) || 0));
+  const attempt = Math.max(0, Number(saved.attempt) || 0);
+  return { score, attempt, mastered: Boolean(saved.mastered) || score >= MAX_SCORE };
+}
+function setProg(q, next) {
+  state.progress[q.category] ??= {};
+  state.progress[q.category][q.id] = {
+    score: Math.max(0, Math.min(MAX_SCORE, next.score)),
+    attempt: Math.max(0, next.attempt),
+    mastered: Boolean(next.mastered),
+  };
+  saveProgress();
+}
+
+async function loadData() {
+  await Promise.all(Object.entries(CONFIG).map(async ([key, config]) => {
+    try {
+      const response = await fetch(config.source, { cache: "no-store" });
+      if (!response.ok) throw Error(`${config.source}: ${response.status}`);
+      const rows = await response.json();
+      state.data[key] = Array.isArray(rows) ? rows.map((row, i) => config.normalise(row, i)).filter(Boolean) : [];
+      delete state.errors[key];
+    } catch (error) {
+      state.data[key] = [];
+      state.errors[key] = error.message || "Failed to load";
+    }
+  }));
+}
+
+function statsFor(key) {
+  return state.data[key].reduce((stats, q) => {
+    const p = prog(q);
+    stats.total += 1;
+    stats.attempts += p.attempt;
+    if (p.mastered) stats.mastered += 1;
+    if (!p.attempt) stats.learning += 1;
+    if (p.attempt && !p.mastered && p.score < WEAK_THRESHOLD) stats.review += 1;
+    if (p.attempt && !p.mastered && p.score >= WEAK_THRESHOLD) stats.learning += 1;
+    return stats;
+  }, { total: 0, mastered: 0, review: 0, learning: 0, attempts: 0 });
+}
+function overall() {
+  return Object.keys(CONFIG).reduce((total, key) => {
+    const stats = statsFor(key);
+    for (const field of Object.keys(total)) total[field] += stats[field];
+    return total;
+  }, { total: 0, mastered: 0, review: 0, learning: 0, attempts: 0 });
+}
+
+function text(selector, value) {
+  const el = $(selector);
+  if (el) el.textContent = value;
+}
+function screen(id) { $$('.screen').forEach((el) => el.classList.toggle('active', el.id === id)); }
+function pct(value, total) { return total ? Math.round((value / total) * 100) : 0; }
+
+function renderHome() {
+  screen('homeScreen');
+  sync();
+  renderStats();
+  renderDecks();
+  renderStatus();
+}
+function sync() {
+  for (const id of ['includeMastered', 'weakOnly', 'unlearnedOnly']) {
+    const el = $('#' + id);
+    if (el) el.checked = Boolean(state.settings[id]);
+  }
+  const mode = $('#studyMode');
+  if (mode) mode.value = state.settings.studyMode;
+  const search = $('#searchInput');
+  if (search && search.value !== state.search) search.value = state.search;
+}
+function renderStats() {
+  const target = $('#overallStats');
+  target.replaceChildren();
+  const stats = overall();
+  stat(target, stats.total, 'Cards', 'All decks');
+  stat(target, stats.mastered, 'Mastered', 'Known');
+  stat(target, stats.review, 'Reviewing', 'Weak');
+  stat(target, stats.learning, 'Learning', 'New');
+}
+function stat(parent, number, label, context) {
+  const card = document.createElement('article');
+  card.className = 'stat';
+  card.innerHTML = `<strong>${number.toLocaleString()}</strong><span>${label}</span><small>${context}</small>`;
+  parent.append(card);
+}
+function renderDecks() {
+  const target = $('#categoryGrid');
+  target.replaceChildren();
+  const query = state.search.toLowerCase();
+
+  for (const [key, config] of Object.entries(CONFIG)) {
+    if (query && !`${config.title} ${config.shortTitle} ${config.desc}`.toLowerCase().includes(query)) continue;
+    const stats = statsFor(key);
+    const ready = buildPool(key).length;
+    const masteredPct = pct(stats.mastered, stats.total);
+    const reviewPct = pct(stats.review, stats.total);
+    const learningPct = pct(stats.learning, stats.total);
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'category-card';
+    button.disabled = !stats.total;
+    button.addEventListener('click', () => startQuiz(key));
+    button.innerHTML = `
+      <span class="deck-icon">${config.icon}</span>
+      <span class="deck-body">
+        <span class="deck-title-row"><h3>${config.title}</h3><span>${ready.toLocaleString()} due</span></span>
+        <p>${stats.total ? config.desc : `Missing or empty ${config.source}`}</p>
+        <span class="deck-bars">
+          <span class="deck-bar"><em>Mastered</em><span class="track mastered"><i style="width:${masteredPct}%"></i></span><b>${stats.mastered}</b></span>
+          <span class="deck-bar"><em>Review</em><span class="track review"><i style="width:${reviewPct}%"></i></span><b>${stats.review}</b></span>
+          <span class="deck-bar"><em>Learning</em><span class="track learning"><i style="width:${learningPct}%"></i></span><b>${stats.learning}</b></span>
+        </span>
+      </span>
+      <span class="deck-cta">Practice →</span>`;
+    target.append(button);
+  }
+
+  if (!target.children.length) {
+    const empty = document.createElement('article');
+    empty.className = 'category-card';
+    empty.innerHTML = '<span class="deck-icon">🔎</span><span class="deck-body"><span class="deck-title-row"><h3>No decks found</h3></span><p>Clear search to show all practice decks.</p></span><span class="deck-cta">Clear</span>';
+    empty.addEventListener('click', () => { state.search = ''; renderHome(); });
+    target.append(empty);
+  }
+}
+function renderStatus() {
+  const loaded = Object.values(state.data).reduce((sum, rows) => sum + rows.length, 0);
+  const errors = Object.keys(state.errors);
+  const stats = overall();
+  const mastery = pct(stats.mastered, stats.total);
+  text('#heroMastery', `${mastery}%`);
+  const bar = $('#overallMasterBar');
+  if (bar) bar.style.width = `${mastery}%`;
+  if (!loaded) {
+    text('#statusBox', 'No quiz data loaded.');
+    text('#heroSubStatus', 'Check that JSON files exist in the repository root.');
+    return;
+  }
+  text('#statusBox', `${loaded.toLocaleString()} cards ready`);
+  text('#heroSubStatus', errors.length ? `Missing: ${errors.map((k) => CONFIG[k].title).join(', ')}. Loaded decks still work.` : `${stats.mastered.toLocaleString()} mastered · ${stats.review.toLocaleString()} reviewing · ${stats.learning.toLocaleString()} learning.`);
+}
+
+function buildPool(key) {
+  return state.data[key].filter((q) => {
+    const p = prog(q);
+    if (!state.settings.includeMastered && p.mastered) return false;
+    if (state.settings.weakOnly && !(p.attempt && !p.mastered && p.score < WEAK_THRESHOLD)) return false;
+    if (state.settings.unlearnedOnly && p.attempt) return false;
+    return true;
+  });
+}
+function startFirstReady() {
+  const key = Object.keys(CONFIG).find((k) => buildPool(k).length);
+  key ? startQuiz(key) : alert('No due cards match the current filters. Clear filters or include mastered cards.');
+}
+function startQuiz(key) {
+  state.active = key;
+  state.pool = buildPool(key);
+  state.correct = 0;
+  state.attempted = 0;
+  state.streak = 0;
+  state.recent = [];
+  if (!state.pool.length) {
+    alert('No cards match these filters. Try including mastered cards or clearing filters.');
+    return;
+  }
+  screen('quizScreen');
+  scrollTo({ top: 0, behavior: 'smooth' });
+  nextQuestion();
+}
+function pick() {
+  const fresh = state.pool.filter((q) => !state.recent.includes(q.id));
+  const list = fresh.length ? fresh : state.pool;
+  const weighted = [];
+  for (const q of list) {
+    const p = prog(q);
+    const weight = p.attempt === 0 ? 5 : p.mastered ? 1 : Math.max(1, MAX_SCORE - p.score + 1);
+    for (let i = 0; i < weight; i += 1) weighted.push(q);
+  }
+  return weighted[Math.floor(Math.random() * weighted.length)];
+}
+function nextQuestion() {
+  state.current = pick();
+  state.answered = false;
+  state.recent.push(state.current.id);
+  if (state.recent.length > Math.min(10, state.pool.length)) state.recent.shift();
+
+  const config = CONFIG[state.active];
+  const p = prog(state.current);
+  text('#quizCategory', config.title);
+  text('#promptLabel', config.label);
+  text('#questionText', state.current.prompt);
+  text('#questionScore', `Score ${p.score} / ${MAX_SCORE}`);
+  quizStats();
+  $('#progressLine').style.width = `${Math.min(100, (state.attempted / Math.max(1, state.pool.length)) * 100)}%`;
+  $('#feedbackBox').className = 'feedback-box hidden';
+  $('#feedbackBox').replaceChildren();
+  $('#nextBtn').classList.add('hidden');
+  renderOptions();
+}
+function renderOptions() {
+  const correct = state.current.answer;
+  const answers = [...new Set(state.data[state.active].map((q) => q.answer).filter((a) => a && a !== correct))];
+  shuffle(answers);
+  const options = shuffle([correct, ...answers.slice(0, 3)]);
+  const target = $('#optionGrid');
+  target.replaceChildren();
+  options.forEach((answerText, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'option-btn';
+    button.dataset.answer = answerText;
+    button.setAttribute('aria-label', `Option ${index + 1}: ${answerText}`);
+    button.addEventListener('click', () => answer(answerText));
+    button.innerHTML = `<span class="option-key">${index + 1}</span><span class="option-label"></span>`;
+    button.querySelector('.option-label').textContent = answerText;
+    target.append(button);
+  });
+}
+function answer(choice) {
+  if (state.answered) return;
+  state.answered = true;
+  state.attempted += 1;
+  const q = state.current;
+  const ok = choice === q.answer;
+  const prev = prog(q);
+  const score = ok ? (state.settings.studyMode === 'instant' ? MAX_SCORE : prev.score + 1) : Math.max(0, prev.score - 1);
+  setProg(q, { score, attempt: prev.attempt + 1, mastered: score >= MAX_SCORE });
+
+  if (ok) {
+    state.correct += 1;
+    state.streak += 1;
+  } else {
+    state.streak = 0;
+  }
+
+  $$('.option-btn').forEach((button) => {
+    button.disabled = true;
+    const value = button.dataset.answer;
+    if (value === q.answer) button.classList.add('correct');
+    else if (value === choice) button.classList.add('wrong');
+    else button.classList.toggle('reveal', value === q.answer);
+  });
+  text('#questionScore', `Score ${Math.max(0, Math.min(MAX_SCORE, score))} / ${MAX_SCORE}`);
+  feedback(ok);
+  quizStats();
+  $('#nextBtn').classList.remove('hidden');
+  $('#nextBtn').focus({ preventScroll: true });
+}
+function feedback(ok) {
+  const q = state.current;
+  const box = $('#feedbackBox');
+  box.className = `feedback-box ${ok ? 'good' : 'bad'}`;
+  box.replaceChildren();
+  const heading = document.createElement('strong');
+  heading.textContent = ok ? 'Correct — move this card toward mastered.' : `Correct answer: ${q.answer}`;
+  box.append(heading);
+  if (q.meaning && q.meaning !== q.prompt) line(box, 'Meaning', q.meaning);
+  if (q.example) line(box, 'Example', q.example);
+}
+function line(parent, label, value) {
+  const row = document.createElement('p');
+  const bold = document.createElement('b');
+  bold.textContent = `${label}: `;
+  row.append(bold, document.createTextNode(value));
+  parent.append(row);
+}
+function quizStats() {
+  const accuracy = state.attempted ? Math.round((state.correct / state.attempted) * 100) : 0;
+  text('#quizCount', `${state.attempted} attempted · ${state.correct} correct · ${accuracy}% · streak ${state.streak}`);
+}
+function exportProgress() {
+  const payload = { app: 'WiseQuiz', version: 1, exportedAt: new Date().toISOString(), progress: state.progress, settings: state.settings };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `wisequiz-progress-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+async function importProgress(file) {
+  if (!file) return;
+  try {
+    const payload = JSON.parse(await file.text());
+    const progress = payload.progress || payload;
+    if (!progress || typeof progress !== 'object' || Array.isArray(progress)) throw Error('Invalid progress file');
+    state.progress = progress;
+    if (payload.settings && typeof payload.settings === 'object') {
+      state.settings = { ...state.settings, ...payload.settings };
+      saveSettings();
+    }
+    saveProgress();
+    renderHome();
+    alert('Progress imported successfully.');
+  } catch (error) {
+    alert(`Could not import progress: ${error.message}`);
+  } finally {
+    $('#importInput').value = '';
+  }
+}
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+function bind() {
+  $('#backBtn').addEventListener('click', renderHome);
+  $('#nextBtn').addEventListener('click', nextQuestion);
+  $('#exportBtn').addEventListener('click', exportProgress);
+  $('#importInput').addEventListener('change', (e) => importProgress(e.target.files?.[0]));
+  $('#resetBtn').addEventListener('click', () => {
+    if (confirm('Reset all WiseQuiz progress on this browser?')) {
+      state.progress = {};
+      saveProgress();
+      renderHome();
+    }
+  });
+  $$('[data-action="home"]').forEach((el) => el.addEventListener('click', (event) => { event.preventDefault(); renderHome(); }));
+  $$('[data-action="first-ready"]').forEach((el) => el.addEventListener('click', startFirstReady));
+  for (const id of ['includeMastered', 'weakOnly', 'unlearnedOnly']) {
+    $('#' + id).addEventListener('change', (event) => {
+      state.settings[id] = event.target.checked;
+      if (id === 'weakOnly' && event.target.checked) state.settings.unlearnedOnly = false;
+      if (id === 'unlearnedOnly' && event.target.checked) state.settings.weakOnly = false;
+      saveSettings();
+      renderHome();
+    });
+  }
+  $('#studyMode').addEventListener('change', (event) => { state.settings.studyMode = event.target.value; saveSettings(); });
+  $('#searchInput').addEventListener('input', (event) => { state.search = event.target.value.trim(); renderDecks(); });
+  document.addEventListener('keydown', (event) => {
+    if (!$('#quizScreen').classList.contains('active')) return;
+    if (/^[1-4]$/.test(event.key) && !state.answered) $$('.option-btn')[Number(event.key) - 1]?.click();
+    if (event.key === 'Enter' && state.answered) nextQuestion();
+    if (event.key === 'Escape') renderHome();
+  });
+}
+
+loadData().then(() => {
+  bind();
+  renderHome();
+}).catch((error) => {
+  console.error(error);
+  text('#statusBox', 'WiseQuiz failed to start.');
+  text('#heroSubStatus', 'Open the console for details and check the JSON files.');
+});
