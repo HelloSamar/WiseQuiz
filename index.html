@@ -82,7 +82,7 @@
               <b>New only</b>
             </label>
           </div>
-          <p class="shortcut-note">Keys: <kbd>1</kbd>–<kbd>4</kbd> answer · <kbd>Enter</kbd> next · <kbd>Esc</kbd> decks</p>
+          <p class="shortcut-note">Keys: <kbd>1</kbd>–<kbd>4</kbd> answer · <kbd>S</kbd> pass · <kbd>Enter</kbd> next · <kbd>Esc</kbd> decks</p>
         </section>
       </section>
 
@@ -104,7 +104,11 @@
           <h2 id="questionText">Loading…</h2>
           <div id="optionGrid" class="option-list"></div>
           <div id="feedbackBox" class="feedback-box hidden"></div>
-          <button id="nextBtn" class="next-action hidden" type="button">Continue →</button>
+          <div class="session-controls">
+            <button id="passBtn" class="secondary-action" type="button">Pass</button>
+            <button id="finishBtn" class="secondary-action" type="button">Finish</button>
+            <button id="nextBtn" class="next-action hidden" type="button">Continue →</button>
+          </div>
         </article>
       </section>
     </main>
