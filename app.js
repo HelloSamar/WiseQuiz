@@ -6,438 +6,53 @@ const STORAGE_KEY = "wisequiz.progress.v1";
 const SETTINGS_KEY = "wisequiz.settings.v1";
 
 const CONFIG = {
-  ows: {
-    title: "One Word Substitution",
-    shortTitle: "OWS",
-    icon: "🎯",
-    source: "ows.json",
-    label: "Choose the one-word substitution for",
-    desc: "Phrase-to-word practice from the full OWS dataset.",
-    normalise: (r, i) => item("ows", r.Phrases, r["One Word Substitution"] || r["One Word"], r.Example, r["Hindi Meaning"], r.Level, i),
-  },
-  idioms: {
-    title: "Idioms",
-    shortTitle: "Idioms",
-    icon: "💬",
-    source: "idioms.json",
-    label: "Choose the idiom that means",
-    desc: "Meaning-to-idiom flashcards with examples.",
-    normalise: (r, i) => item("idioms", r.Meaning, r.Idiom, r.Example, r.Meaning, "Idiom", i),
-  },
-  synonyms: {
-    title: "Synonyms",
-    shortTitle: "Synonyms",
-    icon: "🔁",
-    source: "synonyms.json",
-    label: "Choose the synonym of",
-    desc: "Same-meaning word-pair practice.",
-    normalise: (r, i) => item("synonyms", r.Word, r.Synonym, r.Example, r.Meaning, "Synonym", i),
-  },
-  antonyms: {
-    title: "Antonyms",
-    shortTitle: "Antonyms",
-    icon: "↔️",
-    source: "antonyms.json",
-    label: "Choose the antonym of",
-    desc: "Opposite-word practice for fast recall.",
-    normalise: (r, i) => item("antonyms", r.Word, r.Antonym, r.Example, r.Meaning, "Antonym", i),
-  },
+  ows: { title: "One Word Substitution", shortTitle: "OWS", icon: "🎯", source: "ows.json", label: "Choose the one-word substitution for", desc: "Phrase-to-word practice from the full OWS dataset.", normalise: (r, i) => item("ows", r.Phrases, r["One Word Substitution"] || r["One Word"], r.Example, r["Hindi Meaning"], r.Level, i) },
+  idioms: { title: "Idioms", shortTitle: "Idioms", icon: "💬", source: "idioms.json", label: "Choose the idiom that means", desc: "Meaning-to-idiom flashcards with examples.", normalise: (r, i) => item("idioms", r.Meaning, r.Idiom, r.Example, r.Meaning, "Idiom", i) },
+  synonyms: { title: "Synonyms", shortTitle: "Synonyms", icon: "🔁", source: "synonyms.json", label: "Choose the synonym of", desc: "Same-meaning word-pair practice.", normalise: (r, i) => item("synonyms", r.Word, r.Synonym, r.Example, r.Meaning, "Synonym", i) },
+  antonyms: { title: "Antonyms", shortTitle: "Antonyms", icon: "↔️", source: "antonyms.json", label: "Choose the antonym of", desc: "Opposite-word practice for fast recall.", normalise: (r, i) => item("antonyms", r.Word, r.Antonym, r.Example, r.Meaning, "Antonym", i) }
 };
 
-const state = {
-  data: { ows: [], idioms: [], synonyms: [], antonyms: [] },
-  errors: {},
-  progress: read(STORAGE_KEY, {}),
-  settings: { includeMastered: false, weakOnly: false, unlearnedOnly: false, studyMode: "smart", ...read(SETTINGS_KEY, {}) },
-  search: "",
-  active: null,
-  pool: [],
-  current: null,
-  answered: false,
-  correct: 0,
-  attempted: 0,
-  streak: 0,
-  recent: [],
-};
-
+const state = { data: { ows: [], idioms: [], synonyms: [], antonyms: [] }, errors: {}, progress: read(STORAGE_KEY, {}), settings: { includeMastered: false, weakOnly: false, unlearnedOnly: false, studyMode: "smart", ...read(SETTINGS_KEY, {}) }, search: "", active: null, pool: [], current: null, answered: false, correct: 0, attempted: 0, passed: 0, streak: 0, recent: [] };
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
-const clean = (v) => (v == null ? "" : String(v).trim());
+const clean = (v) => v == null ? "" : String(v).trim();
 
-function item(cat, prompt, answer, example, meaning, level, index) {
-  prompt = clean(prompt);
-  answer = clean(answer);
-  if (!prompt || !answer) return null;
-  const key = `${prompt}|${answer}`.toLowerCase().replace(/[^a-z0-9\u0900-\u097f]+/gi, "-").replace(/^-+|-+$/g, "");
-  return { id: `${cat}-${index}-${key}`, category: cat, prompt, answer, example: clean(example), meaning: clean(meaning), level: clean(level) };
-}
-
-function read(key, fallback) {
-  try {
-    const value = localStorage.getItem(key);
-    return value ? JSON.parse(value) : fallback;
-  } catch {
-    return fallback;
-  }
-}
+function item(cat, prompt, answer, example, meaning, level, index) { prompt = clean(prompt); answer = clean(answer); if (!prompt || !answer) return null; const key = `${prompt}|${answer}`.toLowerCase().replace(/[^a-z0-9\u0900-\u097f]+/gi, "-").replace(/^-+|-+$/g, ""); return { id: `${cat}-${index}-${key}`, category: cat, prompt, answer, example: clean(example), meaning: clean(meaning), level: clean(level) }; }
+function read(key, fallback) { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : fallback; } catch { return fallback; } }
 function write(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 function saveProgress() { write(STORAGE_KEY, state.progress); }
 function saveSettings() { write(SETTINGS_KEY, state.settings); }
+function prog(q) { const saved = state.progress[q.category]?.[q.id] || {}; const score = Math.max(0, Math.min(MAX_SCORE, Number(saved.score) || 0)); const attempt = Math.max(0, Number(saved.attempt) || 0); return { score, attempt, mastered: Boolean(saved.mastered) || score >= MAX_SCORE }; }
+function setProg(q, next) { state.progress[q.category] ??= {}; state.progress[q.category][q.id] = { score: Math.max(0, Math.min(MAX_SCORE, next.score)), attempt: Math.max(0, next.attempt), mastered: Boolean(next.mastered) }; saveProgress(); }
 
-function prog(q) {
-  const saved = state.progress[q.category]?.[q.id] || {};
-  const score = Math.max(0, Math.min(MAX_SCORE, Number(saved.score) || 0));
-  const attempt = Math.max(0, Number(saved.attempt) || 0);
-  return { score, attempt, mastered: Boolean(saved.mastered) || score >= MAX_SCORE };
-}
-function setProg(q, next) {
-  state.progress[q.category] ??= {};
-  state.progress[q.category][q.id] = {
-    score: Math.max(0, Math.min(MAX_SCORE, next.score)),
-    attempt: Math.max(0, next.attempt),
-    mastered: Boolean(next.mastered),
-  };
-  saveProgress();
-}
-
-async function loadData() {
-  await Promise.all(Object.entries(CONFIG).map(async ([key, config]) => {
-    try {
-      const response = await fetch(config.source, { cache: "no-store" });
-      if (!response.ok) throw Error(`${config.source}: ${response.status}`);
-      const rows = await response.json();
-      state.data[key] = Array.isArray(rows) ? rows.map((row, i) => config.normalise(row, i)).filter(Boolean) : [];
-      delete state.errors[key];
-    } catch (error) {
-      state.data[key] = [];
-      state.errors[key] = error.message || "Failed to load";
-    }
-  }));
-}
-
-function statsFor(key) {
-  return state.data[key].reduce((stats, q) => {
-    const p = prog(q);
-    stats.total += 1;
-    stats.attempts += p.attempt;
-    if (p.mastered) stats.mastered += 1;
-    if (!p.attempt) stats.learning += 1;
-    if (p.attempt && !p.mastered && p.score < WEAK_THRESHOLD) stats.review += 1;
-    if (p.attempt && !p.mastered && p.score >= WEAK_THRESHOLD) stats.learning += 1;
-    return stats;
-  }, { total: 0, mastered: 0, review: 0, learning: 0, attempts: 0 });
-}
-function overall() {
-  return Object.keys(CONFIG).reduce((total, key) => {
-    const stats = statsFor(key);
-    for (const field of Object.keys(total)) total[field] += stats[field];
-    return total;
-  }, { total: 0, mastered: 0, review: 0, learning: 0, attempts: 0 });
-}
-
-function text(selector, value) {
-  const el = $(selector);
-  if (el) el.textContent = value;
-}
+async function loadData() { await Promise.all(Object.entries(CONFIG).map(async ([key, config]) => { try { const response = await fetch(config.source, { cache: "no-store" }); if (!response.ok) throw Error(`${config.source}: ${response.status}`); const rows = await response.json(); state.data[key] = Array.isArray(rows) ? rows.map((row, i) => config.normalise(row, i)).filter(Boolean) : []; delete state.errors[key]; } catch (error) { state.data[key] = []; state.errors[key] = error.message || "Failed to load"; } })); }
+function statsFor(key) { return state.data[key].reduce((stats, q) => { const p = prog(q); stats.total++; stats.attempts += p.attempt; if (p.mastered) stats.mastered++; if (!p.attempt) stats.learning++; if (p.attempt && !p.mastered && p.score < WEAK_THRESHOLD) stats.review++; if (p.attempt && !p.mastered && p.score >= WEAK_THRESHOLD) stats.learning++; return stats; }, { total: 0, mastered: 0, review: 0, learning: 0, attempts: 0 }); }
+function overall() { return Object.keys(CONFIG).reduce((total, key) => { const stats = statsFor(key); for (const field of Object.keys(total)) total[field] += stats[field]; return total; }, { total: 0, mastered: 0, review: 0, learning: 0, attempts: 0 }); }
+function text(selector, value) { const el = $(selector); if (el) el.textContent = value; }
 function screen(id) { $$('.screen').forEach((el) => el.classList.toggle('active', el.id === id)); }
 function pct(value, total) { return total ? Math.round((value / total) * 100) : 0; }
 
-function renderHome() {
-  screen('homeScreen');
-  sync();
-  renderStats();
-  renderDecks();
-  renderStatus();
-}
-function sync() {
-  for (const id of ['includeMastered', 'weakOnly', 'unlearnedOnly']) {
-    const el = $('#' + id);
-    if (el) el.checked = Boolean(state.settings[id]);
-  }
-  const mode = $('#studyMode');
-  if (mode) mode.value = state.settings.studyMode;
-  const search = $('#searchInput');
-  if (search && search.value !== state.search) search.value = state.search;
-}
-function renderStats() {
-  const target = $('#overallStats');
-  target.replaceChildren();
-  const stats = overall();
-  stat(target, stats.total, 'Cards', 'All decks');
-  stat(target, stats.mastered, 'Mastered', 'Known');
-  stat(target, stats.review, 'Reviewing', 'Weak');
-  stat(target, stats.learning, 'Learning', 'New');
-}
-function stat(parent, number, label, context) {
-  const card = document.createElement('article');
-  card.className = 'stat';
-  card.innerHTML = `<strong>${number.toLocaleString()}</strong><span>${label}</span><small>${context}</small>`;
-  parent.append(card);
-}
-function renderDecks() {
-  const target = $('#categoryGrid');
-  target.replaceChildren();
-  const query = state.search.toLowerCase();
+function renderHome() { screen('homeScreen'); sync(); renderStats(); renderDecks(); renderStatus(); }
+function sync() { for (const id of ['includeMastered', 'weakOnly', 'unlearnedOnly']) { const el = $('#' + id); if (el) el.checked = Boolean(state.settings[id]); } const mode = $('#studyMode'); if (mode) mode.value = state.settings.studyMode; const search = $('#searchInput'); if (search && search.value !== state.search) search.value = state.search; }
+function renderStats() { const target = $('#overallStats'); target.replaceChildren(); const stats = overall(); stat(target, stats.total, 'Cards', 'All decks'); stat(target, stats.mastered, 'Mastered', 'Known'); stat(target, stats.review, 'Reviewing', 'Weak'); stat(target, stats.learning, 'Learning', 'New'); }
+function stat(parent, number, label, context) { const card = document.createElement('article'); card.className = 'stat'; card.innerHTML = `<strong>${number.toLocaleString()}</strong><span>${label}</span><small>${context}</small>`; parent.append(card); }
+function renderDecks() { const target = $('#categoryGrid'); target.replaceChildren(); const query = state.search.toLowerCase(); for (const [key, config] of Object.entries(CONFIG)) { if (query && !`${config.title} ${config.shortTitle} ${config.desc}`.toLowerCase().includes(query)) continue; const stats = statsFor(key), ready = buildPool(key).length, masteredPct = pct(stats.mastered, stats.total), reviewPct = pct(stats.review, stats.total), learningPct = pct(stats.learning, stats.total); const button = document.createElement('button'); button.type = 'button'; button.className = 'category-card'; button.disabled = !stats.total; button.addEventListener('click', () => startQuiz(key)); button.innerHTML = `<span class="deck-icon">${config.icon}</span><span class="deck-body"><span class="deck-title-row"><h3>${config.title}</h3><span>${ready.toLocaleString()} due</span></span><p>${stats.total ? config.desc : `Missing or empty ${config.source}`}</p><span class="deck-bars"><span class="deck-bar"><em>Mastered</em><span class="track mastered"><i style="width:${masteredPct}%"></i></span><b>${stats.mastered}</b></span><span class="deck-bar"><em>Review</em><span class="track review"><i style="width:${reviewPct}%"></i></span><b>${stats.review}</b></span><span class="deck-bar"><em>Learning</em><span class="track learning"><i style="width:${learningPct}%"></i></span><b>${stats.learning}</b></span></span></span><span class="deck-cta">Practice →</span>`; target.append(button); } if (!target.children.length) { const empty = document.createElement('article'); empty.className = 'category-card'; empty.innerHTML = '<span class="deck-icon">🔎</span><span class="deck-body"><span class="deck-title-row"><h3>No decks found</h3></span><p>Clear search to show all practice decks.</p></span><span class="deck-cta">Clear</span>'; empty.addEventListener('click', () => { state.search = ''; renderHome(); }); target.append(empty); } }
+function renderStatus() { const loaded = Object.values(state.data).reduce((sum, rows) => sum + rows.length, 0), errors = Object.keys(state.errors), stats = overall(), mastery = pct(stats.mastered, stats.total); text('#heroMastery', `${mastery}%`); const bar = $('#overallMasterBar'); if (bar) bar.style.width = `${mastery}%`; if (!loaded) { text('#statusBox', 'No quiz data loaded.'); text('#heroSubStatus', 'Check that JSON files exist in the repository root.'); return; } text('#statusBox', `${loaded.toLocaleString()} cards ready`); text('#heroSubStatus', errors.length ? `Missing: ${errors.map((k) => CONFIG[k].title).join(', ')}. Loaded decks still work.` : `${stats.mastered.toLocaleString()} mastered · ${stats.review.toLocaleString()} reviewing · ${stats.learning.toLocaleString()} learning.`); }
 
-  for (const [key, config] of Object.entries(CONFIG)) {
-    if (query && !`${config.title} ${config.shortTitle} ${config.desc}`.toLowerCase().includes(query)) continue;
-    const stats = statsFor(key);
-    const ready = buildPool(key).length;
-    const masteredPct = pct(stats.mastered, stats.total);
-    const reviewPct = pct(stats.review, stats.total);
-    const learningPct = pct(stats.learning, stats.total);
-
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'category-card';
-    button.disabled = !stats.total;
-    button.addEventListener('click', () => startQuiz(key));
-    button.innerHTML = `
-      <span class="deck-icon">${config.icon}</span>
-      <span class="deck-body">
-        <span class="deck-title-row"><h3>${config.title}</h3><span>${ready.toLocaleString()} due</span></span>
-        <p>${stats.total ? config.desc : `Missing or empty ${config.source}`}</p>
-        <span class="deck-bars">
-          <span class="deck-bar"><em>Mastered</em><span class="track mastered"><i style="width:${masteredPct}%"></i></span><b>${stats.mastered}</b></span>
-          <span class="deck-bar"><em>Review</em><span class="track review"><i style="width:${reviewPct}%"></i></span><b>${stats.review}</b></span>
-          <span class="deck-bar"><em>Learning</em><span class="track learning"><i style="width:${learningPct}%"></i></span><b>${stats.learning}</b></span>
-        </span>
-      </span>
-      <span class="deck-cta">Practice →</span>`;
-    target.append(button);
-  }
-
-  if (!target.children.length) {
-    const empty = document.createElement('article');
-    empty.className = 'category-card';
-    empty.innerHTML = '<span class="deck-icon">🔎</span><span class="deck-body"><span class="deck-title-row"><h3>No decks found</h3></span><p>Clear search to show all practice decks.</p></span><span class="deck-cta">Clear</span>';
-    empty.addEventListener('click', () => { state.search = ''; renderHome(); });
-    target.append(empty);
-  }
-}
-function renderStatus() {
-  const loaded = Object.values(state.data).reduce((sum, rows) => sum + rows.length, 0);
-  const errors = Object.keys(state.errors);
-  const stats = overall();
-  const mastery = pct(stats.mastered, stats.total);
-  text('#heroMastery', `${mastery}%`);
-  const bar = $('#overallMasterBar');
-  if (bar) bar.style.width = `${mastery}%`;
-  if (!loaded) {
-    text('#statusBox', 'No quiz data loaded.');
-    text('#heroSubStatus', 'Check that JSON files exist in the repository root.');
-    return;
-  }
-  text('#statusBox', `${loaded.toLocaleString()} cards ready`);
-  text('#heroSubStatus', errors.length ? `Missing: ${errors.map((k) => CONFIG[k].title).join(', ')}. Loaded decks still work.` : `${stats.mastered.toLocaleString()} mastered · ${stats.review.toLocaleString()} reviewing · ${stats.learning.toLocaleString()} learning.`);
-}
-
-function buildPool(key) {
-  return state.data[key].filter((q) => {
-    const p = prog(q);
-    if (!state.settings.includeMastered && p.mastered) return false;
-    if (state.settings.weakOnly && !(p.attempt && !p.mastered && p.score < WEAK_THRESHOLD)) return false;
-    if (state.settings.unlearnedOnly && p.attempt) return false;
-    return true;
-  });
-}
-function startFirstReady() {
-  const key = Object.keys(CONFIG).find((k) => buildPool(k).length);
-  key ? startQuiz(key) : alert('No due cards match the current filters. Clear filters or include mastered cards.');
-}
-function startQuiz(key) {
-  state.active = key;
-  state.pool = buildPool(key);
-  state.correct = 0;
-  state.attempted = 0;
-  state.streak = 0;
-  state.recent = [];
-  if (!state.pool.length) {
-    alert('No cards match these filters. Try including mastered cards or clearing filters.');
-    return;
-  }
-  screen('quizScreen');
-  scrollTo({ top: 0, behavior: 'smooth' });
-  nextQuestion();
-}
-function pick() {
-  const fresh = state.pool.filter((q) => !state.recent.includes(q.id));
-  const list = fresh.length ? fresh : state.pool;
-  const weighted = [];
-  for (const q of list) {
-    const p = prog(q);
-    const weight = p.attempt === 0 ? 5 : p.mastered ? 1 : Math.max(1, MAX_SCORE - p.score + 1);
-    for (let i = 0; i < weight; i += 1) weighted.push(q);
-  }
-  return weighted[Math.floor(Math.random() * weighted.length)];
-}
-function nextQuestion() {
-  state.current = pick();
-  state.answered = false;
-  state.recent.push(state.current.id);
-  if (state.recent.length > Math.min(10, state.pool.length)) state.recent.shift();
-
-  const config = CONFIG[state.active];
-  const p = prog(state.current);
-  text('#quizCategory', config.title);
-  text('#promptLabel', config.label);
-  text('#questionText', state.current.prompt);
-  text('#questionScore', `Score ${p.score} / ${MAX_SCORE}`);
-  quizStats();
-  $('#progressLine').style.width = `${Math.min(100, (state.attempted / Math.max(1, state.pool.length)) * 100)}%`;
-  $('#feedbackBox').className = 'feedback-box hidden';
-  $('#feedbackBox').replaceChildren();
-  $('#nextBtn').classList.add('hidden');
-  renderOptions();
-}
-function renderOptions() {
-  const correct = state.current.answer;
-  const answers = [...new Set(state.data[state.active].map((q) => q.answer).filter((a) => a && a !== correct))];
-  shuffle(answers);
-  const options = shuffle([correct, ...answers.slice(0, 3)]);
-  const target = $('#optionGrid');
-  target.replaceChildren();
-  options.forEach((answerText, index) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'option-btn';
-    button.dataset.answer = answerText;
-    button.setAttribute('aria-label', `Option ${index + 1}: ${answerText}`);
-    button.addEventListener('click', () => answer(answerText));
-    button.innerHTML = `<span class="option-key">${index + 1}</span><span class="option-label"></span>`;
-    button.querySelector('.option-label').textContent = answerText;
-    target.append(button);
-  });
-}
-function answer(choice) {
-  if (state.answered) return;
-  state.answered = true;
-  state.attempted += 1;
-  const q = state.current;
-  const ok = choice === q.answer;
-  const prev = prog(q);
-  const score = ok ? (state.settings.studyMode === 'instant' ? MAX_SCORE : prev.score + 1) : Math.max(0, prev.score - 1);
-  setProg(q, { score, attempt: prev.attempt + 1, mastered: score >= MAX_SCORE });
-
-  if (ok) {
-    state.correct += 1;
-    state.streak += 1;
-  } else {
-    state.streak = 0;
-  }
-
-  $$('.option-btn').forEach((button) => {
-    button.disabled = true;
-    const value = button.dataset.answer;
-    if (value === q.answer) button.classList.add('correct');
-    else if (value === choice) button.classList.add('wrong');
-    else button.classList.toggle('reveal', value === q.answer);
-  });
-  text('#questionScore', `Score ${Math.max(0, Math.min(MAX_SCORE, score))} / ${MAX_SCORE}`);
-  feedback(ok);
-  quizStats();
-  $('#nextBtn').classList.remove('hidden');
-  $('#nextBtn').focus({ preventScroll: true });
-}
-function feedback(ok) {
-  const q = state.current;
-  const box = $('#feedbackBox');
-  box.className = `feedback-box ${ok ? 'good' : 'bad'}`;
-  box.replaceChildren();
-  const heading = document.createElement('strong');
-  heading.textContent = ok ? 'Correct — move this card toward mastered.' : `Correct answer: ${q.answer}`;
-  box.append(heading);
-  if (q.meaning && q.meaning !== q.prompt) line(box, 'Meaning', q.meaning);
-  if (q.example) line(box, 'Example', q.example);
-}
-function line(parent, label, value) {
-  const row = document.createElement('p');
-  const bold = document.createElement('b');
-  bold.textContent = `${label}: `;
-  row.append(bold, document.createTextNode(value));
-  parent.append(row);
-}
-function quizStats() {
-  const accuracy = state.attempted ? Math.round((state.correct / state.attempted) * 100) : 0;
-  text('#quizCount', `${state.attempted} attempted · ${state.correct} correct · ${accuracy}% · streak ${state.streak}`);
-}
-function exportProgress() {
-  const payload = { app: 'WiseQuiz', version: 1, exportedAt: new Date().toISOString(), progress: state.progress, settings: state.settings };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `wisequiz-progress-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-async function importProgress(file) {
-  if (!file) return;
-  try {
-    const payload = JSON.parse(await file.text());
-    const progress = payload.progress || payload;
-    if (!progress || typeof progress !== 'object' || Array.isArray(progress)) throw Error('Invalid progress file');
-    state.progress = progress;
-    if (payload.settings && typeof payload.settings === 'object') {
-      state.settings = { ...state.settings, ...payload.settings };
-      saveSettings();
-    }
-    saveProgress();
-    renderHome();
-    alert('Progress imported successfully.');
-  } catch (error) {
-    alert(`Could not import progress: ${error.message}`);
-  } finally {
-    $('#importInput').value = '';
-  }
-}
-function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-  return array;
-}
-function bind() {
-  $('#backBtn').addEventListener('click', renderHome);
-  $('#nextBtn').addEventListener('click', nextQuestion);
-  $('#exportBtn').addEventListener('click', exportProgress);
-  $('#importInput').addEventListener('change', (e) => importProgress(e.target.files?.[0]));
-  $('#resetBtn').addEventListener('click', () => {
-    if (confirm('Reset all WiseQuiz progress on this browser?')) {
-      state.progress = {};
-      saveProgress();
-      renderHome();
-    }
-  });
-  $$('[data-action="home"]').forEach((el) => el.addEventListener('click', (event) => { event.preventDefault(); renderHome(); }));
-  $$('[data-action="first-ready"]').forEach((el) => el.addEventListener('click', startFirstReady));
-  for (const id of ['includeMastered', 'weakOnly', 'unlearnedOnly']) {
-    $('#' + id).addEventListener('change', (event) => {
-      state.settings[id] = event.target.checked;
-      if (id === 'weakOnly' && event.target.checked) state.settings.unlearnedOnly = false;
-      if (id === 'unlearnedOnly' && event.target.checked) state.settings.weakOnly = false;
-      saveSettings();
-      renderHome();
-    });
-  }
-  $('#studyMode').addEventListener('change', (event) => { state.settings.studyMode = event.target.value; saveSettings(); });
-  $('#searchInput').addEventListener('input', (event) => { state.search = event.target.value.trim(); renderDecks(); });
-  document.addEventListener('keydown', (event) => {
-    if (!$('#quizScreen').classList.contains('active')) return;
-    if (/^[1-4]$/.test(event.key) && !state.answered) $$('.option-btn')[Number(event.key) - 1]?.click();
-    if (event.key === 'Enter' && state.answered) nextQuestion();
-    if (event.key === 'Escape') renderHome();
-  });
-}
-
-loadData().then(() => {
-  bind();
-  renderHome();
-}).catch((error) => {
-  console.error(error);
-  text('#statusBox', 'WiseQuiz failed to start.');
-  text('#heroSubStatus', 'Open the console for details and check the JSON files.');
-});
+function buildPool(key) { return state.data[key].filter((q) => { const p = prog(q); if (!state.settings.includeMastered && p.mastered) return false; if (state.settings.weakOnly && !(p.attempt && !p.mastered && p.score < WEAK_THRESHOLD)) return false; if (state.settings.unlearnedOnly && p.attempt) return false; return true; }); }
+function startFirstReady() { const key = Object.keys(CONFIG).find((k) => buildPool(k).length); key ? startQuiz(key) : alert('No due cards match the current filters. Clear filters or include mastered cards.'); }
+function startQuiz(key) { state.active = key; state.pool = buildPool(key); state.correct = 0; state.attempted = 0; state.passed = 0; state.streak = 0; state.recent = []; if (!state.pool.length) { alert('No cards match these filters. Try including mastered cards or clearing filters.'); return; } screen('quizScreen'); scrollTo({ top: 0, behavior: 'smooth' }); nextQuestion(); }
+function pick() { const fresh = state.pool.filter((q) => !state.recent.includes(q.id)); const list = fresh.length ? fresh : state.pool, weighted = []; for (const q of list) { const p = prog(q); const weight = p.attempt === 0 ? 5 : p.mastered ? 1 : Math.max(1, MAX_SCORE - p.score + 1); for (let i = 0; i < weight; i++) weighted.push(q); } return weighted[Math.floor(Math.random() * weighted.length)]; }
+function nextQuestion() { state.current = pick(); state.answered = false; state.recent.push(state.current.id); if (state.recent.length > Math.min(10, state.pool.length)) state.recent.shift(); const config = CONFIG[state.active], p = prog(state.current); text('#quizCategory', config.title); text('#promptLabel', config.label); text('#questionText', state.current.prompt); text('#questionScore', `Score ${p.score} / ${MAX_SCORE}`); quizStats(); $('#progressLine').style.width = `${Math.min(100, (state.attempted / Math.max(1, state.pool.length)) * 100)}%`; $('#feedbackBox').className = 'feedback-box hidden'; $('#feedbackBox').replaceChildren(); $('#nextBtn').classList.add('hidden'); $('#passBtn').classList.remove('hidden'); $$('.option-btn').forEach((b) => b.disabled = false); renderOptions(); }
+function renderOptions() { const correct = state.current.answer, answers = [...new Set(state.data[state.active].map((q) => q.answer).filter((a) => a && a !== correct))]; shuffle(answers); const options = shuffle([correct, ...answers.slice(0, 3)]), target = $('#optionGrid'); target.replaceChildren(); options.forEach((answerText, index) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'option-btn'; button.dataset.answer = answerText; button.setAttribute('aria-label', `Option ${index + 1}: ${answerText}`); button.addEventListener('click', () => answer(answerText)); button.innerHTML = `<span class="option-key">${index + 1}</span><span class="option-label"></span>`; button.querySelector('.option-label').textContent = answerText; target.append(button); }); }
+function answer(choice) { if (state.answered) return; state.answered = true; state.attempted++; const q = state.current, ok = choice === q.answer, prev = prog(q), score = ok ? (state.settings.studyMode === 'instant' ? MAX_SCORE : prev.score + 1) : Math.max(0, prev.score - 1); setProg(q, { score, attempt: prev.attempt + 1, mastered: score >= MAX_SCORE }); if (ok) { state.correct++; state.streak++; } else state.streak = 0; $$('.option-btn').forEach((button) => { button.disabled = true; const value = button.dataset.answer; if (value === q.answer) button.classList.add('correct'); else if (value === choice) button.classList.add('wrong'); else button.classList.toggle('reveal', value === q.answer); }); text('#questionScore', `Score ${Math.max(0, Math.min(MAX_SCORE, score))} / ${MAX_SCORE}`); feedback(ok); quizStats(); $('#passBtn').classList.add('hidden'); $('#nextBtn').classList.remove('hidden'); $('#nextBtn').focus({ preventScroll: true }); }
+function passCard() { if (state.answered || !state.current) return; state.passed++; state.streak = 0; quizStats(); nextQuestion(); }
+function finishSession() { const accuracy = state.attempted ? Math.round((state.correct / state.attempted) * 100) : 0; $('#optionGrid').replaceChildren(); text('#questionText', 'Session complete'); text('#promptLabel', CONFIG[state.active]?.title || 'Study session'); text('#questionScore', `${accuracy}% accuracy`); const box = $('#feedbackBox'); box.className = 'feedback-box summary'; box.innerHTML = `<strong>Nice work.</strong><p><b>Attempted:</b> ${state.attempted}</p><p><b>Correct:</b> ${state.correct}</p><p><b>Passed:</b> ${state.passed}</p><p><b>Best next step:</b> review weak cards, then return to due cards.</p>`; $('#passBtn').classList.add('hidden'); $('#nextBtn').classList.add('hidden'); }
+function feedback(ok) { const q = state.current, box = $('#feedbackBox'); box.className = `feedback-box ${ok ? 'good' : 'bad'}`; box.replaceChildren(); const heading = document.createElement('strong'); heading.textContent = ok ? 'Correct — move this card toward mastered.' : `Correct answer: ${q.answer}`; box.append(heading); if (q.meaning && q.meaning !== q.prompt) line(box, 'Meaning', q.meaning); if (q.example) line(box, 'Example', q.example); }
+function line(parent, label, value) { const row = document.createElement('p'), bold = document.createElement('b'); bold.textContent = `${label}: `; row.append(bold, document.createTextNode(value)); parent.append(row); }
+function quizStats() { const accuracy = state.attempted ? Math.round((state.correct / state.attempted) * 100) : 0; text('#quizCount', `${state.attempted} attempted · ${state.correct} correct · ${accuracy}% · ${state.passed} passed · streak ${state.streak}`); }
+function exportProgress() { const payload = { app: 'WiseQuiz', version: 1, exportedAt: new Date().toISOString(), progress: state.progress, settings: state.settings }; const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `wisequiz-progress-${new Date().toISOString().slice(0, 10)}.json`; document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url); }
+async function importProgress(file) { if (!file) return; try { const payload = JSON.parse(await file.text()), progress = payload.progress || payload; if (!progress || typeof progress !== 'object' || Array.isArray(progress)) throw Error('Invalid progress file'); state.progress = progress; if (payload.settings && typeof payload.settings === 'object') { state.settings = { ...state.settings, ...payload.settings }; saveSettings(); } saveProgress(); renderHome(); alert('Progress imported successfully.'); } catch (error) { alert(`Could not import progress: ${error.message}`); } finally { $('#importInput').value = ''; } }
+function shuffle(array) { for (let i = array.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [array[i], array[j]] = [array[j], array[i]]; } return array; }
+function bind() { $('#backBtn').addEventListener('click', renderHome); $('#nextBtn').addEventListener('click', nextQuestion); $('#passBtn').addEventListener('click', passCard); $('#finishBtn').addEventListener('click', finishSession); $('#exportBtn').addEventListener('click', exportProgress); $('#importInput').addEventListener('change', (e) => importProgress(e.target.files?.[0])); $('#resetBtn').addEventListener('click', () => { if (confirm('Reset all WiseQuiz progress on this browser?')) { state.progress = {}; saveProgress(); renderHome(); } }); $$('[data-action="home"]').forEach((el) => el.addEventListener('click', (event) => { event.preventDefault(); renderHome(); })); $$('[data-action="first-ready"]').forEach((el) => el.addEventListener('click', startFirstReady)); for (const id of ['includeMastered', 'weakOnly', 'unlearnedOnly']) $('#' + id).addEventListener('change', (event) => { state.settings[id] = event.target.checked; if (id === 'weakOnly' && event.target.checked) state.settings.unlearnedOnly = false; if (id === 'unlearnedOnly' && event.target.checked) state.settings.weakOnly = false; saveSettings(); renderHome(); }); $('#studyMode').addEventListener('change', (event) => { state.settings.studyMode = event.target.value; saveSettings(); }); $('#searchInput').addEventListener('input', (event) => { state.search = event.target.value.trim(); renderDecks(); }); document.addEventListener('keydown', (event) => { if (!$('#quizScreen').classList.contains('active')) return; if (/^[1-4]$/.test(event.key) && !state.answered) $$('.option-btn')[Number(event.key) - 1]?.click(); if ((event.key === 's' || event.key === 'S') && !state.answered) passCard(); if (event.key === 'Enter' && state.answered) nextQuestion(); if (event.key === 'Escape') renderHome(); }); }
+loadData().then(() => { bind(); renderHome(); }).catch((error) => { console.error(error); text('#statusBox', 'WiseQuiz failed to start.'); text('#heroSubStatus', 'Open the console for details and check the JSON files.'); });
