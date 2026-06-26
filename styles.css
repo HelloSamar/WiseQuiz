@@ -213,10 +213,12 @@ main { flex: 1; }
 }
 .master-track i {
   display: block;
+  width: 0;                  /* BUG FIX: start at 0, app.js sets the real value */
   height: 100%;
   border-radius: var(--radius-pill);
   background: linear-gradient(90deg, var(--primary) 0%, #60a5fa 100%);
   transition: width .7s var(--ease);
+  will-change: width;        /* hint GPU for smooth bar animation */
   font-style: normal;
 }
 .master-row b {
@@ -494,7 +496,7 @@ main { flex: 1; }
 
 .quiz-header > div { text-align: right; line-height: 1.3; }
 #quizCategory { font-size: 13px; font-weight: 600; color: var(--text); display: block; }
-#quizCount    { font-size: 11px; color: var(--text-muted); display: block; }
+#quizCount    { font-size: 11px; font-weight: 400; color: var(--text-muted); display: block; } /* font-weight: 400 overrides <b> default bold */
 
 /* ── Flashcard ──────────────────────────────────── */
 .flashcard {
@@ -513,11 +515,12 @@ main { flex: 1; }
 }
 .progress-line span {
   display: block;
+  width: 0;                  /* BUG FIX: start at 0, app.js sets the real value */
   height: 100%;
   background: linear-gradient(90deg, var(--primary) 0%, #60a5fa 100%);
   border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
   transition: width .5s var(--ease);
-  min-width: 0;
+  will-change: width;        /* hint GPU for smooth bar animation */
 }
 
 /* meta row: eyebrow + score chip */
@@ -611,15 +614,15 @@ main { flex: 1; }
               color var(--dur) var(--ease);
 }
 
-/* hover */
-.option-list button:hover:not(:disabled),
-.option-btn:hover:not(:disabled) {
+/* hover — explicitly exclude revealed states so specificity can't leak */
+.option-list button:hover:not(:disabled):not(.correct):not(.wrong):not(.dimmed),
+.option-btn:hover:not(:disabled):not(.correct):not(.wrong):not(.dimmed) {
   border-color: var(--primary);
   background: var(--primary-light);
   transform: translateX(3px);
 }
-.option-list button:hover:not(:disabled)::before,
-.option-btn:hover:not(:disabled)::before {
+.option-list button:hover:not(:disabled):not(.correct):not(.wrong):not(.dimmed)::before,
+.option-btn:hover:not(:disabled):not(.correct):not(.wrong):not(.dimmed)::before {
   background: var(--primary-light);
   border-color: var(--primary);
   color: var(--primary);
