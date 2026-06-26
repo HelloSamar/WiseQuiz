@@ -29,6 +29,8 @@
   --text:           #0f172a;
   --text-mid:       #334155;
   --text-muted:     #64748b;
+  --correct-text:   #14532d;  /* answer-state text: dark green (light mode) */
+  --wrong-text:     #7f1d1d;  /* answer-state text: dark red (light mode) */
 
   /* Geometry */
   --radius-sm:  8px;
@@ -52,8 +54,12 @@ html {
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;     /* IMPROVEMENT: stop iOS auto-scaling fonts and breaking layouts */
+  text-size-adjust: 100%;
+  text-rendering: optimizeLegibility; /* IMPROVEMENT: better kerning on headings */
   color: var(--text);
-  scroll-padding-top: 56px;   /* IMPROVEMENT: stop sticky topbar clipping anchor targets */
+  scroll-padding-top: 56px;
+  scroll-behavior: smooth;            /* IMPROVEMENT: smooth skip-link / anchor jumps */
 }
 
 body {
@@ -65,6 +71,8 @@ body {
 }
 
 button, select, input { font-family: inherit; }
+button, label { touch-action: manipulation; } /* IMPROVEMENT: remove 300ms tap delay on older mobile browsers */
+button        { user-select: none; }          /* IMPROVEMENT: rapid mobile taps won't select button text */
 
 /* ── Accessibility ──────────────────────────────── */
 .skip-link {
@@ -85,7 +93,7 @@ button, select, input { font-family: inherit; }
 :focus-visible {
   outline: 3px solid var(--primary);
   outline-offset: 2px;
-  border-radius: 4px;
+  /* no border-radius override — outline follows each element's own shape automatically */
 }
 
 /* ── Phone shell ────────────────────────────────── */
@@ -228,6 +236,7 @@ main { flex: 1; }
   color: var(--primary);
   min-width: 38px;
   text-align: right;
+  font-variant-numeric: tabular-nums; /* IMPROVEMENT: stable width as % animates */
 }
 
 .sub-status {
@@ -296,7 +305,7 @@ main { flex: 1; }
 /* ── Stats strip ────────────────────────────────── */
 .stats-strip {
   display: flex;
-  gap: 0;
+  gap: 8px;                /* IMPROVEMENT: use gap, not margin-right on every child */
   padding: 10px 20px;
   overflow-x: auto;
   scrollbar-width: none;
@@ -313,7 +322,6 @@ main { flex: 1; }
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--border);
-  margin-right: 8px;
   flex-shrink: 0;
   min-width: 72px;
 }
@@ -540,6 +548,7 @@ main { flex: 1; }
   background: var(--primary-light);
   color: var(--primary);
   letter-spacing: .02em;
+  font-variant-numeric: tabular-nums; /* IMPROVEMENT: stable chip width as "0/5" → "4/5" */
 }
 
 /* question */
@@ -603,7 +612,6 @@ main { flex: 1; }
   justify-content: center;
   width: 28px;
   height: 28px;
-  min-width: 28px;
   border-radius: 7px;
   background: var(--surface);
   border: 1.5px solid var(--border-strong);
@@ -637,7 +645,7 @@ main { flex: 1; }
 .option-btn.correct {
   background: var(--correct-bg)  !important;
   border-color: var(--correct)   !important;
-  color: #14532d                 !important;
+  color: var(--correct-text)         !important;
   font-weight: 600;
   transform: none                !important;  /* BUG FIX: stop hover translateX overriding via higher specificity */
   cursor: default;
@@ -661,7 +669,7 @@ main { flex: 1; }
 .option-btn.wrong {
   background: var(--wrong-bg)  !important;
   border-color: var(--wrong)   !important;
-  color: #7f1d1d               !important;
+  color: var(--wrong-text)     !important;
   font-weight: 600;
   transform: none              !important;  /* BUG FIX: same as .correct */
   cursor: default;
@@ -704,13 +712,13 @@ main { flex: 1; }
 .feedback-box[data-result="correct"] {
   background: var(--correct-bg);
   border-color: var(--correct-mid);
-  color: #14532d;
+  color: var(--correct-text);
 }
 .feedback-box.wrong,
 .feedback-box[data-result="wrong"] {
   background: var(--wrong-bg);
   border-color: var(--wrong-mid);
-  color: #7f1d1d;
+  color: var(--wrong-text);
 }
 
 /* ── Session controls ───────────────────────────── */
@@ -758,11 +766,63 @@ main { flex: 1; }
 .next-action:active  { transform: scale(.97); }
 .next-action.hidden  { display: none; }
 
+/* ── Screen transitions ─────────────────────────── */
+/* Only the incoming screen animates; the outgoing one vanishes immediately (display:none) */
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.screen.active {
+  animation: screenIn 220ms var(--ease) both;
+}
+
 /* ── Reduced motion ─────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: .01ms !important;
     animation-duration:  .01ms !important;
+  }
+}
+
+/* ── Dark mode ──────────────────────────────────── */
+/*
+  All colours are token-driven, so a single :root override
+  flips the entire UI. No component-level selectors needed
+  except for things that used hardcoded colours (now fixed above
+  with --correct-text / --wrong-text variables).
+*/
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Surfaces */
+    --bg:             #0f172a;
+    --surface:        #1e293b;
+    --surface-alt:    #263448;
+    --border:         #334155;
+    --border-strong:  #475569;
+
+    /* Brand */
+    --primary:        #60a5fa;  /* lighter blue — readable on dark bg */
+    --primary-hover:  #93c5fd;
+    --primary-light:  #1e3a5f;  /* tinted dark container for chips/tags */
+
+    /* Answer states */
+    --correct:        #4ade80;  /* lighter green — visible on dark bg */
+    --correct-bg:     #052e16;
+    --correct-mid:    #166534;
+    --correct-text:   #bbf7d0;  /* override: the original dark green is invisible on dark bg */
+    --wrong:          #f87171;  /* lighter red */
+    --wrong-bg:       #450a0a;
+    --wrong-mid:      #991b1b;
+    --wrong-text:     #fecaca;  /* override: dark red → light pink */
+
+    /* Text */
+    --text:           #f1f5f9;
+    --text-mid:       #cbd5e1;
+    --text-muted:     #94a3b8;
+
+    /* Shadows — need more opacity to show on dark surfaces */
+    --shadow:         0 1px 3px rgba(0,0,0,.35), 0 4px 14px rgba(0,0,0,.3);
+    --shadow-lg:      0 4px 32px rgba(0,0,0,.5);
   }
 }
 

@@ -4,11 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="WiseQuiz vocabulary flashcards for OWS, idioms, synonyms, and antonyms.">
+  <meta name="theme-color" content="#1d4ed8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f172a"  media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>WiseQuiz</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>  <!-- defer: head placement = earlier download, same late execution -->
 </head>
 <body>
 
@@ -21,7 +27,7 @@
     <a class="brand" href="#" data-action="home" aria-label="WiseQuiz home">
       <span class="brand-word">Wise<span>Quiz</span></span>
     </a>
-    <div class="top-actions" aria-label="Progress controls">
+    <div class="top-actions" role="toolbar" aria-label="App controls">
       <button class="icon-btn" id="exportBtn" type="button" title="Export progress">⇩</button>
       <label  class="icon-btn file-btn" for="importInput" title="Import progress">⇧</label>
       <input  id="importInput" type="file" accept="application/json,.json" hidden>
@@ -113,13 +119,13 @@
     <!-- ══════════════════════════════════════════
          QUIZ SCREEN
          ══════════════════════════════════════════ -->
-    <section id="quizScreen" class="screen" aria-live="polite">
+    <section id="quizScreen" class="screen" aria-label="Quiz">
 
       <div class="quiz-header">
         <button class="back-link" id="backBtn" type="button">← Decks</button>
         <div>
           <span id="quizCategory">Quiz</span>
-          <b id="quizCount">0 attempted · 0 correct</b>
+          <span id="quizCount">0 attempted · 0 correct</span>
         </div>
       </div>
 
@@ -159,6 +165,5 @@
   </main>
 </div><!-- /phone-shell -->
 
-<script src="app.js" defer></script>
 </body>
 </html>
