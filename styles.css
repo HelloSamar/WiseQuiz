@@ -53,6 +53,7 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   color: var(--text);
+  scroll-padding-top: 56px;   /* IMPROVEMENT: stop sticky topbar clipping anchor targets */
 }
 
 body {
@@ -638,18 +639,19 @@ main { flex: 1; }
   border-color: var(--correct)   !important;
   color: #14532d                 !important;
   font-weight: 600;
-  transform: none;
+  transform: none                !important;  /* BUG FIX: stop hover translateX overriding via higher specificity */
   cursor: default;
+  pointer-events: none;                       /* IMPROVEMENT: kill all mouse interaction once revealed */
 }
 .option-list button.correct::before,
 .option-list button[data-correct="true"]::before,
 .option-list button[data-state="correct"]::before,
 .option-list .correct::before,
 .option-btn.correct::before {
-  content: '✓'     !important;
-  background: var(--correct)     !important;
-  border-color: var(--correct)   !important;
-  color: #fff                    !important;
+  content: '✓'                 !important;
+  background: var(--correct)   !important;
+  border-color: var(--correct) !important;
+  color: #fff                  !important;
 }
 
 /* ❌ WRONG — clear red */
@@ -661,16 +663,18 @@ main { flex: 1; }
   border-color: var(--wrong)   !important;
   color: #7f1d1d               !important;
   font-weight: 600;
+  transform: none              !important;  /* BUG FIX: same as .correct */
   cursor: default;
+  pointer-events: none;                     /* IMPROVEMENT: kill hover/click once revealed */
 }
 .option-list button.wrong::before,
 .option-list button[data-state="wrong"]::before,
 .option-list .wrong::before,
 .option-btn.wrong::before {
-  content: '✗'    !important;
-  background: var(--wrong)     !important;
-  border-color: var(--wrong)   !important;
-  color: #fff                  !important;
+  content: '✗'                !important;
+  background: var(--wrong)    !important;
+  border-color: var(--wrong)  !important;
+  color: #fff                 !important;
 }
 
 /* dimmed / disabled after reveal */
