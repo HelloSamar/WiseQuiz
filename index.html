@@ -11,109 +11,154 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <a class="skip-link" href="#mainContent">Skip to content</a>
 
-  <div class="phone-shell">
-    <header class="app-topbar">
-      <a class="brand" href="#" data-action="home" aria-label="WiseQuiz home">
-        <span class="brand-word">Wise<span>Quiz</span></span>
-      </a>
-      <div class="top-actions" aria-label="Progress controls">
-        <button class="icon-btn" id="exportBtn" type="button" title="Export progress">⇩</button>
-        <label class="icon-btn file-btn" for="importInput" title="Import progress">⇧</label>
-        <input id="importInput" type="file" accept="application/json,.json" hidden>
-        <button class="icon-btn danger" id="resetBtn" type="button" title="Reset progress">↺</button>
-      </div>
-    </header>
+<a class="skip-link" href="#mainContent">Skip to content</a>
 
-    <main id="mainContent">
-      <section id="homeScreen" class="screen active" aria-labelledby="dashboardTitle">
-        <section class="study-hero">
-          <p class="eyebrow">Vocabulary flashcards</p>
-          <h1 id="dashboardTitle">Choose a deck</h1>
-          <p id="statusBox">Loading data…</p>
-          <div class="master-row" aria-label="Overall mastery">
-            <span>Overall</span>
-            <div class="master-track"><i id="overallMasterBar"></i></div>
-            <b id="heroMastery">0%</b>
-          </div>
-          <p class="sub-status" id="heroSubStatus">Preparing your quiz boxes.</p>
-        </section>
+<div class="phone-shell">
 
-        <section class="quick-panel" aria-label="Quick controls">
-          <div class="search-wrap">
-            <label for="searchInput">Search decks</label>
-            <input id="searchInput" type="search" placeholder="OWS, Idioms…" autocomplete="off">
-          </div>
-          <button class="primary-action" type="button" data-action="first-ready">Practice due cards →</button>
-        </section>
+  <!-- ── Top bar ──────────────────────────────── -->
+  <header class="app-topbar">
+    <a class="brand" href="#" data-action="home" aria-label="WiseQuiz home">
+      <span class="brand-word">Wise<span>Quiz</span></span>
+    </a>
+    <div class="top-actions" aria-label="Progress controls">
+      <button class="icon-btn" id="exportBtn" type="button" title="Export progress">⇩</button>
+      <label  class="icon-btn file-btn" for="importInput" title="Import progress">⇧</label>
+      <input  id="importInput" type="file" accept="application/json,.json" hidden>
+      <button class="icon-btn danger" id="resetBtn" type="button" title="Reset progress">↺</button>
+    </div>
+  </header>
 
-        <div class="stats-strip" id="overallStats" aria-label="Overall progress"></div>
-        <div class="deck-list" id="categoryGrid" aria-label="Practice decks"></div>
+  <main id="mainContent">
 
-        <section class="settings-panel" id="settingsPanel" aria-labelledby="settingsTitle">
-          <div class="settings-title-row">
-            <div>
-              <p class="eyebrow">Study setup</p>
-              <h2 id="settingsTitle">Session options</h2>
-            </div>
-            <label class="select-pill" for="studyMode">
-              <span>Mode</span>
-              <select id="studyMode">
-                <option value="smart">Smart</option>
-                <option value="instant">Instant</option>
-              </select>
-            </label>
-          </div>
-          <div class="settings-grid">
-            <label class="toggle-line">
-              <input type="checkbox" id="includeMastered">
-              <span class="toggle-ui"></span>
-              <b>Include mastered</b>
-            </label>
-            <label class="toggle-line">
-              <input type="checkbox" id="weakOnly">
-              <span class="toggle-ui"></span>
-              <b>Weak only</b>
-            </label>
-            <label class="toggle-line">
-              <input type="checkbox" id="unlearnedOnly">
-              <span class="toggle-ui"></span>
-              <b>New only</b>
-            </label>
-          </div>
-          <p class="shortcut-note">Keys: <kbd>1</kbd>–<kbd>4</kbd> answer · <kbd>S</kbd> pass · <kbd>Enter</kbd> next · <kbd>Esc</kbd> decks</p>
-        </section>
+    <!-- ══════════════════════════════════════════
+         HOME SCREEN
+         ══════════════════════════════════════════ -->
+    <section id="homeScreen" class="screen active" aria-labelledby="dashboardTitle">
+
+      <!-- Hero -->
+      <section class="study-hero">
+        <p class="eyebrow">Vocabulary flashcards</p>
+        <h1 id="dashboardTitle">Choose a deck</h1>
+        <p id="statusBox">Loading data…</p>
+        <div class="master-row" aria-label="Overall mastery">
+          <span>Overall</span>
+          <div class="master-track"><i id="overallMasterBar"></i></div>
+          <b id="heroMastery">0%</b>
+        </div>
+        <p class="sub-status" id="heroSubStatus">Preparing your quiz boxes.</p>
       </section>
 
-      <section id="quizScreen" class="screen" aria-live="polite">
-        <div class="quiz-header">
-          <button class="back-link" id="backBtn" type="button">← Decks</button>
+      <!-- Search + CTA -->
+      <section class="quick-panel" aria-label="Quick controls">
+        <div class="search-wrap">
+          <label for="searchInput">Search decks</label>
+          <input id="searchInput" type="search" placeholder="OWS, Idioms…" autocomplete="off">
+        </div>
+        <button class="primary-action" type="button" data-action="first-ready">
+          Practice due →
+        </button>
+      </section>
+
+      <!-- Stats strip -->
+      <div class="stats-strip" id="overallStats" aria-label="Overall progress"></div>
+
+      <!-- Deck grid -->
+      <div class="deck-list" id="categoryGrid" aria-label="Practice decks"></div>
+
+      <!-- Settings -->
+      <section class="settings-panel" id="settingsPanel" aria-labelledby="settingsTitle">
+        <div class="settings-title-row">
           <div>
-            <span id="quizCategory">Quiz</span>
-            <b id="quizCount">0 attempted · 0 correct</b>
+            <p class="eyebrow">Study setup</p>
+            <h2 id="settingsTitle">Session options</h2>
           </div>
+          <label class="select-pill" for="studyMode">
+            <span>Mode</span>
+            <select id="studyMode">
+              <option value="smart">Smart</option>
+              <option value="instant">Instant</option>
+            </select>
+          </label>
         </div>
 
-        <article class="flashcard">
-          <div class="progress-line" aria-hidden="true"><span id="progressLine"></span></div>
-          <div class="flash-meta">
-            <p class="eyebrow" id="promptLabel">Choose the answer</p>
-            <span id="questionScore" class="score-chip">Score 0 / 5</span>
-          </div>
-          <h2 id="questionText">Loading…</h2>
-          <div id="optionGrid" class="option-list"></div>
-          <div id="feedbackBox" class="feedback-box hidden"></div>
-          <div class="session-controls">
-            <button id="passBtn" class="secondary-action" type="button">Pass</button>
-            <button id="finishBtn" class="secondary-action" type="button">Finish</button>
-            <button id="nextBtn" class="next-action hidden" type="button">Continue →</button>
-          </div>
-        </article>
-      </section>
-    </main>
-  </div>
+        <div class="settings-grid">
+          <label class="toggle-line">
+            <input type="checkbox" id="includeMastered">
+            <span class="toggle-ui"></span>
+            <b>Include mastered</b>
+          </label>
+          <label class="toggle-line">
+            <input type="checkbox" id="weakOnly">
+            <span class="toggle-ui"></span>
+            <b>Weak only</b>
+          </label>
+          <label class="toggle-line">
+            <input type="checkbox" id="unlearnedOnly">
+            <span class="toggle-ui"></span>
+            <b>New only</b>
+          </label>
+        </div>
 
-  <script src="app.js" defer></script>
+        <p class="shortcut-note">
+          Keys: <kbd>1</kbd>–<kbd>4</kbd> answer &nbsp;·&nbsp;
+          <kbd>S</kbd> pass &nbsp;·&nbsp;
+          <kbd>Enter</kbd> next &nbsp;·&nbsp;
+          <kbd>Esc</kbd> decks
+        </p>
+      </section>
+
+    </section><!-- /homeScreen -->
+
+    <!-- ══════════════════════════════════════════
+         QUIZ SCREEN
+         ══════════════════════════════════════════ -->
+    <section id="quizScreen" class="screen" aria-live="polite">
+
+      <div class="quiz-header">
+        <button class="back-link" id="backBtn" type="button">← Decks</button>
+        <div>
+          <span id="quizCategory">Quiz</span>
+          <b id="quizCount">0 attempted · 0 correct</b>
+        </div>
+      </div>
+
+      <article class="flashcard">
+
+        <!-- progress bar -->
+        <div class="progress-line" aria-hidden="true">
+          <span id="progressLine"></span>
+        </div>
+
+        <!-- label + score -->
+        <div class="flash-meta">
+          <p class="eyebrow" id="promptLabel">Choose the answer</p>
+          <span id="questionScore" class="score-chip">Score 0 / 5</span>
+        </div>
+
+        <!-- question -->
+        <h2 id="questionText">Loading…</h2>
+
+        <!-- options injected by app.js -->
+        <div id="optionGrid" class="option-list" role="group" aria-labelledby="questionText"></div>
+
+        <!-- feedback -->
+        <div id="feedbackBox" class="feedback-box hidden" role="alert"></div>
+
+        <!-- controls -->
+        <div class="session-controls">
+          <button id="passBtn"   class="secondary-action" type="button">Pass</button>
+          <button id="finishBtn" class="secondary-action" type="button">Finish</button>
+          <button id="nextBtn"   class="next-action hidden" type="button">Continue →</button>
+        </div>
+
+      </article>
+
+    </section><!-- /quizScreen -->
+
+  </main>
+</div><!-- /phone-shell -->
+
+<script src="app.js" defer></script>
 </body>
 </html>
